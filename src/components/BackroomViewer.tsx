@@ -222,6 +222,325 @@ api.onTick((dt, ts) => {
   \`);
 });
     `.trim()
+  },
+  {
+    id: 'monobloc_chair',
+    name: 'Monobloc Chair Test',
+    cnName: '测试：经典 Monobloc 塑料椅',
+    description: 'Spawns 15 high-fidelity white monobloc plastic garden chairs randomly across the Backrooms corridors to test custom 3D model support and placement accuracy.',
+    cnDescription: '在后室回廊中随机分布放置 15 把经典的白色 Monobloc 塑料庭院椅，完美测试模组脚本对于自定义精细 3D 几何体的支持度。',
+    jsCode: `
+const THREE = api.THREE;
+const scene = api.getScene();
+
+if (scene) {
+  api.showToast("Monobloc Chair mod synced! 15 white chairs generated randomly.");
+
+  // Procedural Monobloc plastic garden chair mesh builder with perfect mathematical symmetry and pivot grouping
+  function createMonoblocChair() {
+    const chairGroup = new THREE.Group();
+
+    // Pure white semi-gloss injection molded polymer plastic material
+    const pcMat = new THREE.MeshStandardMaterial({
+      color: 0xfcfcfc,
+      roughness: 0.18,
+      metalness: 0.02,
+      side: THREE.DoubleSide
+    });
+
+    // 1. Contoured Seat Plate with 3 elegant water drainage hollow slots formed by 4 parallel planks
+    for (let i = -1.5; i <= 1.5; i++) {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.02, 0.082), pcMat);
+      plank.position.set(0.02, 0.44, i * 0.10);
+      chairGroup.add(plank);
+    }
+
+    // Smooth semi-circular front lip
+    const frontLip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.385), pcMat);
+    frontLip.position.set(0.205, 0.42, 0);
+    chairGroup.add(frontLip);
+
+    // Decorative supporting side skirts
+    const skirtL = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.04, 0.02), pcMat);
+    skirtL.position.set(0.02, 0.42, 0.192);
+    chairGroup.add(skirtL);
+
+    const skirtR = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.04, 0.02), pcMat);
+    skirtR.position.set(0.02, 0.42, -0.192);
+    chairGroup.add(skirtR);
+
+    // Rear skirt plate
+    const skirtB = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.37), pcMat);
+    skirtB.position.set(-0.17, 0.42, 0);
+    chairGroup.add(skirtB);
+
+    // 2. Beautiful Slatted Backrest: 5 slats built upright inside a parent group to prevent Euler axis skewing
+    const backrestGroup = new THREE.Group();
+    backrestGroup.position.set(-0.16, 0.44, 0); // Anchored at the rear seat boundary
+
+    const R_back = 0.18;
+    for (let i = -2; i <= 2; i++) {
+      const angle = i * 0.22;
+      const slat = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.48, 0.010), pcMat);
+      slat.position.set(
+        -(Math.cos(angle) - 1) * 0.05, 
+        0.24, 
+        Math.sin(angle) * R_back
+      );
+      slat.rotation.y = -angle;
+      backrestGroup.add(slat);
+    }
+
+    // Upper arched headrest loop
+    for (let i = -8; i <= 8; i++) {
+      const angle = (i / 8) * (Math.PI / 2.3);
+      const piece = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.035, 0.035), pcMat);
+      piece.position.set(
+        -(Math.cos(angle) - 1) * 0.06,
+        0.48 - Math.abs(angle) * 0.015,
+        Math.sin(angle) * (R_back + 0.005)
+      );
+      piece.rotation.y = -angle;
+      backrestGroup.add(piece);
+    }
+
+    // Solid comfort side wing panels matching backrest curves
+    const wingL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.44, 0.015), pcMat);
+    wingL.position.set(-0.02, 0.22, 0.182);
+    wingL.rotation.y = 0.4;
+    backrestGroup.add(wingL);
+
+    const wingR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.44, 0.015), pcMat);
+    wingR.position.set(-0.02, 0.22, -0.182);
+    wingR.rotation.y = -0.4;
+    backrestGroup.add(wingR);
+
+    // Rotation of the parent backrest group tilts the entire slat assembly backwards neatly!
+    backrestGroup.rotation.z = 0.16; // Leans back symmetrically around local Z coordinate
+    chairGroup.add(backrestGroup);
+
+    // 3. Continuous comfortable Armrests linked perfectly
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.032, 0.045), pcMat);
+    armL.position.set(0.02, 0.61, 0.202);
+    chairGroup.add(armL);
+
+    const armDownL = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.17, 8), pcMat);
+    armDownL.position.set(0.20, 0.525, 0.202);
+    chairGroup.add(armDownL);
+
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.032, 0.045), pcMat);
+    armR.position.set(0.02, 0.61, -0.202);
+    chairGroup.add(armR);
+
+    const armDownR = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.17, 8), pcMat);
+    armDownR.position.set(0.20, 0.525, -0.202);
+    chairGroup.add(armDownR);
+
+    // 4. Perfect splayed legs with top-connection pivot groups (stays 100% attached to the seat)
+    function createSplayedLeg(topX, topZ, rotX, rotZ, legHeight, legRadTop, legRadBot) {
+      const legGroup = new THREE.Group();
+      legGroup.position.set(topX, 0.44, topZ); // Anchor precisely at seat plane intersection
+
+      const cylinder = new THREE.Mesh(
+        new THREE.CylinderGeometry(legRadTop, legRadBot, legHeight, 8),
+        pcMat
+      );
+      cylinder.position.set(0, -legHeight / 2, 0); // Position relative to top connection
+      legGroup.add(cylinder);
+
+      legGroup.rotation.x = rotX;
+      legGroup.rotation.z = rotZ; // Rotates relative to the top anchor for neat splaying
+      return legGroup;
+    }
+
+    // Front Left Leg
+    const legFL = createSplayedLeg(0.20, 0.182, 0.05, -0.05, 0.44, 0.022, 0.015);
+    chairGroup.add(legFL);
+
+    // Front Right Leg
+    const legFR = createSplayedLeg(0.20, -0.182, -0.05, -0.05, 0.44, 0.022, 0.015);
+    chairGroup.add(legFR);
+
+    // Back Left Leg (splayed back and left for structural stabilization)
+    const legBL = createSplayedLeg(-0.16, 0.178, 0.06, 0.13, 0.44, 0.022, 0.014);
+    chairGroup.add(legBL);
+
+    // Back Right Leg
+    const legBR = createSplayedLeg(-0.16, -0.178, -0.06, 0.13, 0.44, 0.022, 0.014);
+    chairGroup.add(legBR);
+
+    return chairGroup;
+  }
+
+  // Find walkable cells and spawn chairs
+  const mapData = api.getMapGrid();
+  const spacing = api.getGridSpacing() || 3.2;
+
+  if (mapData && mapData.grid) {
+    const walkableCells = [];
+    for (let r = 0; r < mapData.height; r++) {
+      for (let c = 0; c < mapData.width; c++) {
+        if (mapData.grid[r][c] === 0) {
+          walkableCells.push({ r, c });
+        }
+      }
+    }
+
+    // Shuffle simple matching coordinates
+    for (let i = walkableCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = walkableCells[i];
+      walkableCells[i] = walkableCells[j];
+      walkableCells[j] = temp;
+    }
+
+    const spawnCount = Math.min(15, walkableCells.length);
+    for (let s = 0; s < spawnCount; s++) {
+      const { r, c } = walkableCells[s];
+      const chair = createMonoblocChair();
+
+      // Convert grid coordinates to world space and add simple natural offset jitter
+      const x = c * spacing + spacing / 2 + (Math.random() - 0.5) * 1.0;
+      const z = r * spacing + spacing / 2 + (Math.random() - 0.5) * 1.0;
+
+      chair.position.set(x, 0, z);
+
+      // Random face rotation around vertical axis (look natural!)
+      chair.rotation.y = Math.random() * Math.PI * 2;
+
+      // Add to ThreeJS Scene
+      scene.add(chair);
+
+      // Safe registration in sandbox array so they get automatically hot-uninstalled
+      api._spawnedMeshes.push(chair);
+    }
+  }
+}
+    `.trim()
+  },
+  {
+    id: 'youtuber_mod',
+    name: 'Youtuber Clickbait HUD',
+    cnName: 'Youtuber 封面高保真红圈',
+    description: 'Dynamic JavaScript injected mod: Highlights active Backroom entities (Stalker or Smiler) directly on your screen with a giant bright red clickbait circle and curved pointing arrow, accompanied by a suspense state sound cue!',
+    cnDescription: '动态 JavaScript 脚本：在屏幕上用经典的 YouTube 封面党高亮红圈和手绘指向大红箭头，实时框选当前的后室实体 (Stalker/Smiler)，高调显眼，自带恐怖博主封面幽默效果！',
+    jsCode: `
+api.showToast("OMG! Backrooms Entity Clickbait Red Circle Mod [ENABLED]❗😱");
+
+const THREE = api.THREE;
+
+api.onTick((dt, ts) => {
+  const camera = api.getCamera();
+  const renderer = api.getRenderer();
+  
+  if (!camera || !renderer) return;
+  const canvas = renderer.domElement;
+  if (!canvas) return;
+
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+
+  const targets = [
+    { name: 'STALKER ❗', key: 'stalker', yOffset: 1.3, color: '#ff2222' },
+    { name: 'SMILER 😱', key: 'smiler', yOffset: 1.45, color: '#ff5500' }
+  ];
+
+  let overlaysHtml = '';
+
+  targets.forEach(t => {
+    const dist = api.getMonsterDistance(t.key);
+    // Only circle them if they are in standard spatial range
+    if (dist > 0 && dist < 45) {
+      const pos3d = api.getMonsterPos(t.key);
+      const vec = new THREE.Vector3(pos3d.x, t.yOffset, pos3d.z);
+      
+      // Project 3D vector to normalized device coordinates (NDC)
+      vec.project(camera);
+
+      // Check if it is within camera's frustum field of view (forward-facing test)
+      if (vec.z <= 1) {
+        // Map to standard element-relative screen coordinates
+        const x = (vec.x * 0.5 + 0.5) * width;
+        const y = (-(vec.y * 0.5) + 0.5) * height;
+
+        // Draw a classic bold clickbait circle and hand-sketched arrow pointing at center
+        overlaysHtml += \`
+          <div style="
+            position: absolute;
+            left: \${x}px;
+            top: \${y}px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          ">
+            <!-- Large Red Pulsating Marker Ring -->
+            <div style="
+              width: 140px;
+              height: 140px;
+              border: 7px solid #e11d48;
+              border-radius: 50%;
+              box-shadow: 0 0 20px #e11d48, inset 0 0 20px #e11d48;
+              animation: clickbait-bounce 0.6s infinite alternate ease-in-out;
+              position: relative;
+            ">
+              <!-- Label above circle -->
+              <span style="
+                position: absolute;
+                bottom: calc(100% + 10px);
+                left: 50%;
+                transform: translateX(-50%);
+                background: #e11d48;
+                color: #ffffff;
+                font-family: 'Space Grotesk', Impact, sans-serif;
+                font-size: 11px;
+                font-weight: 900;
+                padding: 4px 10px;
+                border-radius: 4px;
+                white-space: nowrap;
+                letter-spacing: 0.1em;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                border: 2px solid white;
+              ">
+                \${t.name} (\${dist.toFixed(1)}m)
+              </span>
+              
+              <!-- Curved thick marker arrow pointing to target -->
+              <svg width="110" height="110" viewBox="0 0 100 100" style="
+                position: absolute;
+                left: -60px;
+                top: -95px;
+                transform: rotate(-10deg);
+                filter: drop-shadow(3px 4px 0px rgba(0,0,0,0.85));
+              ">
+                <path d="M 85 15 C 55 20, 25 40, 25 72" stroke="#e11d48" stroke-width="12" fill="none" stroke-linecap="round"/>
+                <path d="M 12 55 L 25 74 L 42 62" stroke="#e11d48" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        \`;
+      }
+    }
+  });
+
+  // Inject animations if not already present
+  let styleTag = '';
+  if (!window._clickbaitStyleAdded) {
+    window._clickbaitStyleAdded = true;
+    styleTag = \`
+      <style>
+        @keyframes clickbait-bounce {
+          0% { transform: scale(1.0); }
+          100% { transform: scale(1.12); }
+        }
+      </style>
+    \`;
+  }
+
+  api.customUI(styleTag + overlaysHtml);
+});
+    `.trim()
   }
 ];
 
@@ -537,6 +856,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
               [modId]: html
             }));
           },
+
+          getMapGrid: () => mapDataRef.current,
+          getGridSpacing: () => GRID_SPACING,
 
           getKeys: () => keysPressed.current,
 
