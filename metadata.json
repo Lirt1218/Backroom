@@ -1,0 +1,6 @@
+{
+  "name": "Minimalist 3D Backrooms Simulator",
+  "description": "A realistic, procedural 3D Backrooms exploration simulator with authentic VHS camera styling and fluorescent humming.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
