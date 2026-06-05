@@ -541,6 +541,46 @@ api.onTick((dt, ts) => {
   api.customUI(styleTag + overlaysHtml);
 });
     `.trim()
+  },
+  {
+    id: 'baby_mode',
+    name: 'Baby Mode',
+    cnName: '婴儿模式 (无实体防吓)',
+    description: 'Dynamic JavaScript injected mod: Removes all terrifying entities (Stalker & Smiler) and cancels heartbeat alarms, jumpscares, and static filters for a completely safe, peaceful exploration environment.',
+    cnDescription: '动态 JavaScript 脚本：完全移除场景中所有吓人的怪物实体（Stalker 追逐者与 Smiler 笑魇），取消所有的心跳爆音、屏幕故障和黑屏判定，提供 100% 纯净、温和的后室漫游度假体验！',
+    jsCode: `
+api.showToast("👶 Baby Mode Active! No entities inside the Backrooms.");
+
+api.onTick((dt, ts) => {
+  api.customUI(\`
+    <div style="
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(14, 165, 233, 0.95);
+      border: 2px solid #ffffff;
+      border-radius: 9999px;
+      padding: 6px 18px;
+      color: #ffffff;
+      font-family: 'Space Grotesk', system-ui, sans-serif;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    ">
+      <span>👶</span>
+      <span>Baby Mode (Peaceful) Enabled</span>
+    </div>
+  \`);
+});
+    `.trim()
   }
 ];
 
@@ -1680,6 +1720,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
 
+    const isBabyMode = activeModIds.includes('baby_mode');
+
     // 1. Generate map logic
     const map = generateBackroom(seed);
     mapDataRef.current = map;
@@ -2228,18 +2270,19 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     stalkerGeo.translate(0, stalkerHeight * 0.4137, 0);
 
     const stalkerSprite = new THREE.Mesh(stalkerGeo, stalkerShaderMat);
+    stalkerSprite.visible = !isBabyMode;
     scene.add(stalkerSprite);
 
     // Find a valid stalker spawn position
     const stalkerSpawn = getSafeSpawnCell(8, 14, []);
     stalkerPosRef.current.set(
-      stalkerSpawn.c * GRID_SPACING + GRID_SPACING / 2,
+      isBabyMode ? -9999.0 : (stalkerSpawn.c * GRID_SPACING + GRID_SPACING / 2),
       0.0,
-      stalkerSpawn.r * GRID_SPACING + GRID_SPACING / 2
+      isBabyMode ? -9999.0 : (stalkerSpawn.r * GRID_SPACING + GRID_SPACING / 2)
     );
 
     // Position of stalker component
-    stalkerSprite.position.set(stalkerPosRef.current.x, 0.02, stalkerPosRef.current.z);
+    stalkerSprite.position.set(stalkerPosRef.current.x, isBabyMode ? -9999.0 : 0.02, stalkerPosRef.current.z);
 
     // ==========================================
     // SMILER MONSTER (笑魇) GLOWING BILLBOARD MESH
@@ -2301,18 +2344,19 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     const smilerSize = 1.6;
     const smilerGeo = new THREE.PlaneGeometry(smilerSize, smilerSize, 16, 16);
     const smilerSprite = new THREE.Mesh(smilerGeo, smilerShaderMat);
+    smilerSprite.visible = !isBabyMode;
     scene.add(smilerSprite);
 
     // Spawn Smiler, ensuring it avoids the stalker's spawn coordinates
     const smilerSpawn = getSafeSpawnCell(11, 18, [stalkerSpawn]);
     smilerPosRef.current.set(
-      smilerSpawn.c * GRID_SPACING + GRID_SPACING / 2,
+      isBabyMode ? -9999.0 : (smilerSpawn.c * GRID_SPACING + GRID_SPACING / 2),
       0.0,
-      smilerSpawn.r * GRID_SPACING + GRID_SPACING / 2
+      isBabyMode ? -9999.0 : (smilerSpawn.r * GRID_SPACING + GRID_SPACING / 2)
     );
 
     // Position of smiler component (floating eye height at 1.45m)
-    smilerSprite.position.set(smilerPosRef.current.x, 1.45, smilerPosRef.current.z);
+    smilerSprite.position.set(smilerPosRef.current.x, isBabyMode ? -9999.0 : 1.45, smilerPosRef.current.z);
 
     // 5. Ambient & Directional Lights
     // Ambient light: low sickly greenish-yellow fluorescent light cast
@@ -2847,15 +2891,21 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
       // Trigger Stalker (Heavy metal growl) & Smiler (Sinister chimes & whispers) separately
       if (audioEngineRef.current && settingsRef.current.soundEnabled && audioActive) {
-        audioEngineRef.current.updateMonsterSound(distToPlayer);
-        audioEngineRef.current.updateSmilerSound(distToSmiler);
-        audioEngineRef.current.updateHeartbeat(Math.min(distToPlayer, distToSmiler));
+        if (isBabyMode) {
+          audioEngineRef.current.updateMonsterSound(999);
+          audioEngineRef.current.updateSmilerSound(999);
+          audioEngineRef.current.updateHeartbeat(999);
+        } else {
+          audioEngineRef.current.updateMonsterSound(distToPlayer);
+          audioEngineRef.current.updateSmilerSound(distToSmiler);
+          audioEngineRef.current.updateHeartbeat(Math.min(distToPlayer, distToSmiler));
+        }
       }
 
       // --- 1. STALKER (BACTERIA) PERSISTENT POSITION DIRECTOR & AI ---
       // Proximity director: if stalker drifts too far (e.g. > 45 meters),
       // respawn it in a hidden room closer to the player to keep the suspense high!
-      if (distToPlayer > 45.0) {
+      if (distToPlayer > 45.0 && !isBabyMode) {
         const stalkerRespawn = getSafeSpawnCell(6, 10, [
           { r: Math.floor(smilerWorldPos.z / GRID_SPACING), c: Math.floor(smilerWorldPos.x / GRID_SPACING) }
         ]);
@@ -2876,7 +2926,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       // Speeds increased significantly as requested to match the high tension chasing behavior!
       const stalkSpeed = (currentDistance < 8.5 ? 3.0 : 1.5) * getModMonsterSpeedMultiplier();
 
-      if (currentDistance > 0.1) {
+      if (currentDistance > 0.1 && !isBabyMode) {
         const nextStalkerPos = stalkerWorldPos.clone().addScaledVector(stalkDirection, stalkSpeed * dt);
         
         const currCol = Math.floor(stalkerWorldPos.x / GRID_SPACING);
@@ -2904,7 +2954,14 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       // Update position coordinates list: We position the sprite at y = 0.02 + bobAmt.
       // Since its pivot anchor is set exactly at its feet (center.y = 0.086), 
       // the feet will rest perfectly and crawl exactly 2cm above the carpet, completely avoiding clipping!
-      stalkerSprite.position.set(stalkerWorldPos.x, 0.02 + bobAmt, stalkerWorldPos.z);
+      if (isBabyMode) {
+        stalkerWorldPos.set(-9999.0, 0.0, -9999.0);
+        stalkerSprite.position.set(-9999.0, -9999.0, -9999.0);
+        stalkerSprite.visible = false;
+      } else {
+        stalkerSprite.visible = true;
+        stalkerSprite.position.set(stalkerWorldPos.x, 0.02 + bobAmt, stalkerWorldPos.z);
+      }
 
       // Rotate to always stand vertically upright and face the player/camera exactly horizontally
       stalkerSprite.rotation.set(0, Math.atan2(camera.position.x - stalkerWorldPos.x, camera.position.z - stalkerWorldPos.z), 0);
@@ -2927,7 +2984,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
       // --- 2. SMILER (笑魇) POSITION DIRECTOR & AI ---
       // If Smiler drifts too far (> 45.0m), respawn it relatively close in a hidden room
-      if (distToSmiler > 45.0) {
+      if (distToSmiler > 45.0 && !isBabyMode) {
         const smilerRespawn = getSafeSpawnCell(6, 10, [
           { r: Math.floor(stalkerWorldPos.z / GRID_SPACING), c: Math.floor(stalkerWorldPos.x / GRID_SPACING) }
         ]);
@@ -2947,7 +3004,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       // Smiler crawls forward floatily (fast when close, slow/spooky pacing when far)
       const smilerSpeed = (currentSmilerDist < 8.5 ? 3.5 : 1.35) * getModMonsterSpeedMultiplier();
 
-      if (currentSmilerDist > 0.1) {
+      if (currentSmilerDist > 0.1 && !isBabyMode) {
         const nextSmilerPos = smilerWorldPos.clone().addScaledVector(smilerDirection, smilerSpeed * dt);
         
         const currCol = Math.floor(smilerWorldPos.x / GRID_SPACING);
@@ -2998,7 +3055,14 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
       // Floating, breathing bobbing animation in midair (no legs, floating hovering head)
       const smilerBob = 1.35 + Math.sin(gameTimeRef.current * 1.8) * 0.04;
-      smilerSprite.position.set(smilerWorldPos.x, smilerBob, smilerWorldPos.z);
+      if (isBabyMode) {
+        smilerWorldPos.set(-9999.0, 0.0, -9999.0);
+        smilerSprite.position.set(-9999.0, -9999.0, -9999.0);
+        smilerSprite.visible = false;
+      } else {
+        smilerSprite.visible = true;
+        smilerSprite.position.set(smilerWorldPos.x, smilerBob, smilerWorldPos.z);
+      }
 
       // Rotate to face camera horizontally
       smilerSprite.rotation.set(0, Math.atan2(camera.position.x - smilerWorldPos.x, camera.position.z - smilerWorldPos.z), 0);
