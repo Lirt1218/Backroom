@@ -4,7 +4,7 @@ import { GameSettings, MapData } from '../types';
 import { generateBackroom } from './BackroomGenerator';
 import { TextureGenerator } from './TextureGenerator';
 import { AudioEngine } from './AudioEngine';
-import { Play, Pause, Square, Lock, Music, Library, Compass, Disc, RefreshCw, Sliders } from 'lucide-react';
+import { Play, Pause, Square, Lock, Music, Library, Compass, Disc, RefreshCw, Sliders, LogOut } from 'lucide-react';
 import { CASSETTE_LIST, TapeModelViewer, CassetteTape } from './TapeModelViewer';
 
 interface BackroomViewerProps {
@@ -17,6 +17,213 @@ interface BackroomViewerProps {
   onAudioToggle: () => void;
   onPlayerPosChange?: (col: number, row: number) => void;
 }
+
+export interface ModItem {
+  id: string;
+  name: string;
+  cnName: string;
+  description: string;
+  cnDescription: string;
+  wallColor?: string;
+  floorColor?: string;
+  playerSpeedMultiplier?: number;
+  batteryDecayMultiplier?: number;
+  monsterSpeedMultiplier?: number;
+  jsCode?: string;
+  isCustom?: boolean;
+}
+
+export interface ScriptMod {
+  id: string;
+  name: string;
+  cnName: string;
+  description: string;
+  cnDescription: string;
+  jsCode: string;
+  isCustom?: boolean;
+}
+
+export interface RunningScriptInstance {
+  id: string;
+  name: string;
+  onInit?: () => void;
+  onTick?: (dt: number, timestamp: number) => void;
+  onKeyDown?: (key: string) => void;
+  onCollectTape?: (tapeId: number) => void;
+  api: any;
+}
+
+export const SCRIPT_PRESETS: ScriptMod[] = [
+  {
+    id: 'disco',
+    name: 'Neon Disco Spaces',
+    cnName: '霓虹迪斯科核空间',
+    description: 'Dynamic JavaScript injected mod: Shifts wall color channels dynamically over time, increases physical speeds, and spawns rotating shiny Disco spheres near you!',
+    cnDescription: '动态 JavaScript 脚本：随时间渐变环境光影色彩与雾气深度，加快玩家行动速度，并在玩家身旁动态生成旋转耀眼的 3D 霓虹迪斯科球！',
+    jsCode: `
+// Setup basic speed and colors
+api.showToast("Neon Disco Party Enabled!");
+api.setPlayerSpeed(1.8);
+
+const scene = api.getScene();
+const THREE = api.THREE;
+
+scene.background = new THREE.Color('#180020');
+if (scene.fog) {
+  scene.fog.color.setHex(0xff007f);
+}
+
+// Spawn a 3D Disco sphere mesh
+const geom = new THREE.SphereGeometry(0.5, 12, 12);
+const mat = new THREE.MeshBasicMaterial({ color: 0x8a2be2, wireframe: true });
+const discoBall = api.spawnMesh(geom, mat);
+
+api.onTick((dt, ts) => {
+  const pPos = api.getPlayerPos();
+  // Move disco ball smoothly ahead of the player
+  const rotY = api.getPlayerRotationY();
+  const dx = Math.sin(rotY) * 2;
+  const dz = Math.cos(rotY) * 2;
+  discoBall.position.set(pPos.x + dx, 1.8 + Math.sin(ts / 400) * 0.15, pPos.z + dz);
+  discoBall.rotation.y += dt * 1.5;
+  discoBall.rotation.x += dt * 0.8;
+
+  // Cycle colors dynamically
+  const r = Math.sin(ts / 1000) * 0.5 + 0.5;
+  const g = Math.cos(ts / 1200) * 0.5 + 0.5;
+  if (scene.fog) {
+    scene.fog.color.setRGB(r * 0.4, 0, g * 0.4);
+  }
+
+  api.customUI(\`
+    <div style="position: absolute; top: 120px; left: 24px; font-family: monospace; font-size: 11px; background: rgba(24,24,27,0.85); color: #c084fc; padding: 12px; border: 1px solid #c084fc; border-radius: 12px; font-weight: bold; box-shadow: 0 0 10px rgba(192,132,252,0.5); pointer-events: auto;">
+      🌌 NEON PARTY SPACE<br/>
+      SPEED RATIO: <span style="color:#a855f7">1.8X</span><br/>
+      ROTATION: ACTIVE
+    </div>
+  \`);
+});
+    `.trim()
+  },
+  {
+    id: 'teleporter',
+    name: 'Quantum Teleporter & GPS Radar',
+    cnName: '量子坐标传送仪与 GPS 雷达',
+    description: 'Dynamic JavaScript injected mod: Displays real-time radar distance, allows pressing [T] to blink forward 5m, or pressing [C] to warp instantly to closest Tape!',
+    cnDescription: '动态 JavaScript 脚本：显示破译源与笑魇物距雷达；允许按下 [T] 键向前瞬闪 5 米，或按下 [C] 键直接锁定追踪最近的磁带并传送降落！',
+    jsCode: `
+api.showToast("Quantum Teleporter Loaded! [T] Spark Flash | [C] Telesync Tape");
+
+api.onKeyDown((key) => {
+  if (key === 'KeyT') {
+    const pos = api.getPlayerPos();
+    const rotY = api.getPlayerRotationY();
+    const dx = Math.sin(rotY) * 5;
+    const dz = Math.cos(rotY) * 5;
+    api.setPlayerPos(pos.x + dx, pos.y, pos.z + dz);
+    api.showToast("⚡ INSTANT QUANTUM BLINK!");
+  }
+
+  if (key === 'KeyC') {
+    const tapeCoords = api.getClosestTapeCoords();
+    if (tapeCoords) {
+      api.setPlayerPos(tapeCoords.x, 0.4, tapeCoords.z);
+      api.showToast("🔮 TELEPORTED TO TAPE CARRIER!");
+    } else {
+      api.showToast("No active tapes left in sector.");
+    }
+  }
+});
+
+api.onTick((dt, ts) => {
+  const dist = api.getClosestTapeDistance();
+  const stalkerD = api.getMonsterDistance('stalker');
+  const smilerD = api.getMonsterDistance('smiler');
+  
+  api.customUI(\`
+    <div style="position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%); background: rgba(9, 9, 11, 0.95); border: 2px solid #10b981; padding: 12px 18px; border-radius: 16px; color: #34d399; font-family: monospace; font-size: 11px; box-shadow: 0 0 15px rgba(16,185,129,0.3); pointer-events: auto; display: flex; flex-direction: column; gap: 4px; text-align: center; width: 280px;">
+      <span style="font-weight: bold; letter-spacing: 0.12em; color: #10b981;">🛰️ TAPE QUANTUM RADAR ACTIVE</span>
+      <div style="border-bottom: 1px solid #1f2937; margin: 4px 0;"></div>
+      <div style="display: flex; justify-content: space-between; font-size: 10px;">
+        <span>Nearest Tape:</span>
+        <span style="color:#fff; font-weight:bold;">\${dist !== -1 ? dist.toFixed(1) + 'm' : 'N/A'}</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 10px;">
+        <span>Stalker Threat:</span>
+        <span style="color:#ef4444; font-weight:bold;">\${stalkerD.toFixed(1)}m</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 10px;">
+        <span>Smiler Threat:</span>
+        <span style="color:#f87171; font-weight:bold;">\${smilerD.toFixed(1)}m</span>
+      </div>
+      <span style="font-size: 8px; color: #6b7280; margin-top: 5px;">[T] BLINK FORWARD | [C] WARP TO TAPE</span>
+    </div>
+  \`);
+});
+    `.trim()
+  },
+  {
+    id: 'stungun',
+    name: 'Electromagnetic Stun Gun',
+    cnName: '实体电磁高能冷冻枪',
+    description: 'Dynamic JavaScript injected mod: Displays threat radar in HUD. Pressing [F] or [Space] discharges an electromagnetic surge, paralyzing both entities near you!',
+    cnDescription: '动态 JavaScript 脚本：在 HUD 的右上方展现怪物理学阻距。按下 [F] 或 [空格] 即向四周爆破电磁震荡波，瘫痪冷冻 Stalker 与 Smiler 的活动，持续数秒！',
+    jsCode: `
+api.showToast("Electromagnetic Stun Gun Activated! [F] to discharge paralyzing field.");
+let freezeTimer = 0;
+
+api.onKeyDown((key) => {
+  if (key === 'KeyF' || key === 'Space') {
+    if (freezeTimer <= 0) {
+      freezeTimer = 5; // 5s recharge
+      api.setMonsterSpeed(0.1); // Severely freeze monster
+      api.showToast("💥 EM PARALYST ELECTRIFIED! Entity immobilized!");
+      
+      const scene = api.getScene();
+      const originalFog = scene.fog.color.getHex();
+      scene.fog.color.setHex(0xffffff);
+      setTimeout(() => {
+        scene.fog.color.setHex(originalFog);
+      }, 100);
+    } else {
+      api.showToast("Stun battery is still recharging...");
+    }
+  }
+});
+
+api.onTick((dt, ts) => {
+  if (freezeTimer > 0) {
+    freezeTimer -= dt;
+    if (freezeTimer <= 0) {
+      api.setMonsterSpeed(1.2);
+      api.showToast("⚡ EM field collapsed. Entities resumed stalking.");
+    }
+  }
+
+  const stalkDist = api.getMonsterDistance('stalker');
+  const smilerDist = api.getMonsterDistance('smiler');
+
+  api.customUI(\`
+    <div style="position: absolute; top: 120px; right: 24px; background: rgba(24, 24, 27, 0.9); border: 1px solid #ef4444; border-radius: 12px; padding: 12px; color: #f4f4f5; font-family: monospace; font-size: 11px; width: 220px; pointer-events: auto; box-shadow: 0 0 10px rgba(239,68,68,0.2);">
+      <div style="font-weight: bold; border-bottom: 1px solid #3f3f46; padding-bottom: 6px; margin-bottom: 6px; text-align: center; color: #f87171;">⚡ STUN GUN CONTROL</div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+        <span>Stalker:</span>
+        <span style="color:#f43f5e; font-weight:bold;">\${stalkDist.toFixed(1)}m</span>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+        <span>Smiler:</span>
+        <span style="color:#f43f5e; font-weight:bold;">\${smilerDist.toFixed(1)}m</span>
+      </div>
+      <div style="background: #27272a; border-radius: 6px; height: 18px; overflow: hidden; position: relative; text-align: center; font-size: 9px; line-height: 18px;">
+        <div style="width: \s\${Math.max(0, (1 - freezeTimer / 5) * 100)}%; background: #ef4444; height: 100%; transition: width 0.1s linear;"></div>
+        <span style="position: absolute; inset: 0; color: #fff; font-weight: bold;">\${freezeTimer > 0 ? 'FROZEN ('+freezeTimer.toFixed(1)+'s)' : 'READY [F]'}</span>
+      </div>
+    </div>
+  \`);
+});
+    `.trim()
+  }
+];
 
 export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   seed,
@@ -71,6 +278,365 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   // State elements
   const [pointerLocked, setPointerLocked] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
+  const [activeMenuSubTab, setActiveMenuSubTab] = useState<'main' | 'settings' | 'mods' | 'collectibles'>('main');
+
+  const [activeModIds, setActiveModIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('backrooms_active_mods');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [customMods, setCustomMods] = useState<ModItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('backrooms_custom_mods');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const toggleMod = (id: string) => {
+    setActiveModIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      localStorage.setItem('backrooms_active_mods', JSON.stringify(next));
+      return next;
+    });
+    showToastNotification(settings.language === 'en' ? "Modular config synchronized" : "模组配置同步成功");
+  };
+
+  const handleCustomModUpload = (filename: string, text: string) => {
+    try {
+      let name = '';
+      let cnName = '';
+      let description = '';
+      let cnDescription = '';
+      let jsCode = '';
+
+      if (filename.toLowerCase().endsWith('.json')) {
+        const parsed = JSON.parse(text);
+        name = parsed.name || 'Unnamed Script Mod';
+        cnName = parsed.cnName || name;
+        description = parsed.description || 'Custom loaded modification.';
+        cnDescription = parsed.cnDescription || '自定义加载的拓展模组配置。';
+        jsCode = parsed.jsCode || '';
+        if (!jsCode) {
+          showToastNotification(settings.language === 'en' ? "Missing 'jsCode' field in JSON" : "模组 JSON 缺少 'jsCode' 字段");
+          return;
+        }
+      } else {
+        // Raw JavaScript upload
+        name = filename.replace(/\.(js|txt)$/i, '');
+        cnName = name;
+        description = 'Raw JavaScript Custom Plugin';
+        cnDescription = '原生 JavaScript 自定义拓展插件';
+        jsCode = text;
+      }
+
+      const newMod: ScriptMod = {
+        id: 'custom_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        name,
+        cnName,
+        description,
+        cnDescription,
+        jsCode,
+        isCustom: true
+      };
+
+      setCustomMods(prev => {
+        const next = [...prev, newMod];
+        localStorage.setItem('backrooms_custom_mods', JSON.stringify(next));
+        return next;
+      });
+
+      // Auto-enable
+      setActiveModIds(prev => {
+        const next = [...prev, newMod.id];
+        localStorage.setItem('backrooms_active_mods', JSON.stringify(next));
+        return next;
+      });
+
+      showToastNotification(settings.language === 'en' ? `Script Mod "${newMod.name}" loaded!` : `物理脚本模组 "${newMod.cnName}" 编译装载成功！`);
+    } catch (err) {
+      showToastNotification(settings.language === 'en' ? "Invalid custom script file syntax" : "配置文件或脚本语法格式错误");
+    }
+  };
+
+  const deleteCustomMod = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCustomMods(prev => {
+      const next = prev.filter(m => m.id !== id);
+      localStorage.setItem('backrooms_custom_mods', JSON.stringify(next));
+      return next;
+    });
+    setActiveModIds(prev => {
+      const next = prev.filter(mid => mid !== id);
+      localStorage.setItem('backrooms_active_mods', JSON.stringify(next));
+      return next;
+    });
+    showToastNotification(settings.language === 'en' ? "Mod uninstalled" : "模组已物理清除");
+  };
+
+  const [scriptCustomUi, setScriptCustomUi] = useState<Record<string, string>>({});
+  const activeScriptInstancesRef = useRef<RunningScriptInstance[]>([]);
+
+  // Mod Dynamic JavaScript System Compiler & Lifecycle Core Runner
+  useEffect(() => {
+    // 1. Cleanup all previous interactive script instances
+    activeScriptInstancesRef.current.forEach(instance => {
+      try {
+        if (instance.api && instance.api._spawnedMeshes) {
+          instance.api._spawnedMeshes.forEach((mesh: THREE.Object3D) => {
+            if (sceneRef.current) {
+              sceneRef.current.remove(mesh);
+              if (mesh instanceof THREE.Mesh) {
+                if (mesh.geometry) mesh.geometry.dispose();
+                if (mesh.material) {
+                  if (Array.isArray(mesh.material)) {
+                    mesh.material.forEach((m: any) => m.dispose());
+                  } else {
+                    mesh.material.dispose();
+                  }
+                }
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Mod visual mesh cleanup error for:", instance.name, err);
+      }
+    });
+
+    activeScriptInstancesRef.current = [];
+    setScriptCustomUi({});
+
+    // Reset layout modifiers to baseline
+    scriptPlayerSpeedMultiplierRef.current = 1.0;
+    scriptBatteryDecayMultiplierRef.current = 1.0;
+    scriptMonsterSpeedMultiplierRef.current = 1.0;
+
+    if (sceneRef.current) {
+      sceneRef.current.background = new THREE.Color('#3a3523');
+      if (sceneRef.current.fog) {
+        sceneRef.current.fog.color.set('#3a3523');
+      }
+    }
+
+    if (showStartOverlay) {
+      return; // Do not start compiling before starting screen begins
+    }
+
+    // 2. Map and compile scripts
+    const compileResults: RunningScriptInstance[] = [];
+
+    activeModIds.forEach(modId => {
+      const presetMod = SCRIPT_PRESETS.find(m => m.id === modId);
+      const customMod = customMods.find(m => m.id === modId);
+      const mod = presetMod || (customMod as any);
+
+      if (!mod || !mod.jsCode) return;
+
+      try {
+        const initCallbacks: (() => void)[] = [];
+        const tickCallbacks: ((dt: number, timestamp: number) => void)[] = [];
+        const keyDownCallbacks: ((key: string) => void)[] = [];
+        const collectTapeCallbacks: ((tapeId: number) => void)[] = [];
+
+        const spawnedMeshes: THREE.Object3D[] = [];
+
+        const api = {
+          THREE,
+          getScene: () => sceneRef.current,
+          getCamera: () => cameraRef.current,
+          getRenderer: () => rendererRef.current,
+
+          getPlayerPos: () => {
+            return {
+              x: playerPosRef.current ? playerPosRef.current.x : 0,
+              y: playerPosRef.current ? playerPosRef.current.y : 0,
+              z: playerPosRef.current ? playerPosRef.current.z : 0
+            };
+          },
+          setPlayerPos: (x: number, y: number, z: number) => {
+            if (playerPosRef.current) playerPosRef.current.set(x, y, z);
+            if (cameraRef.current) cameraRef.current.position.set(x, y, z);
+          },
+          getPlayerRotationY: () => rotationYRef.current,
+          setPlayerRotationY: (ang: number) => { rotationYRef.current = ang; },
+          getPlayerRotationX: () => rotationXRef.current,
+          setPlayerRotationX: (ang: number) => { rotationXRef.current = ang; },
+          isSprinting: () => isSprintingRef.current,
+
+          setPlayerSpeed: (mult: number) => {
+            scriptPlayerSpeedMultiplierRef.current = mult;
+          },
+          setBatteryDecay: (mult: number) => {
+            scriptBatteryDecayMultiplierRef.current = mult;
+          },
+          setMonsterSpeed: (mult: number) => {
+            scriptMonsterSpeedMultiplierRef.current = mult;
+          },
+
+          getBattery: () => batteryLevelRef.current,
+          setBattery: (lvl: number) => {
+            batteryLevelRef.current = lvl;
+            window.dispatchEvent(new CustomEvent('backrooms_battery_update', { detail: { battery: lvl } }));
+          },
+
+          spawnMesh: (geometry: THREE.BufferGeometry, material: THREE.Material) => {
+            const mesh = new THREE.Mesh(geometry, material);
+            if (sceneRef.current) sceneRef.current.add(mesh);
+            spawnedMeshes.push(mesh);
+            return mesh;
+          },
+          spawnItem: (name: string, x: number, z: number, colorStr?: string) => {
+            const geo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+            const mat = new THREE.MeshBasicMaterial({ color: colorStr ? new THREE.Color(colorStr) : 0xeab308 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, 0.2, z);
+            if (sceneRef.current) sceneRef.current.add(mesh);
+            spawnedMeshes.push(mesh);
+            return mesh;
+          },
+
+          getClosestTapeDistance: () => {
+            return closestTapeDistanceRef.current;
+          },
+          getClosestTapeCoords: () => {
+            return closestTapeCoordsRef.current;
+          },
+
+          getMonsterDistance: (type: 'stalker' | 'smiler') => {
+            const p = playerPosRef.current;
+            if (!p) return 999;
+            if (type === 'stalker') {
+              const stalkerPos = stalkerPosRef.current;
+              return stalkerPos ? p.distanceTo(stalkerPos) : 999;
+            } else {
+              const smilerPos = smilerPosRef.current;
+              return smilerPos ? p.distanceTo(smilerPos) : 999;
+            }
+          },
+          getMonsterPos: (type: 'stalker' | 'smiler') => {
+            const target = type === 'stalker' ? stalkerPosRef.current : smilerPosRef.current;
+            return target ? { x: target.x, y: target.y, z: target.z } : { x: 0, y: 0, z: 0 };
+          },
+          setMonsterPos: (type: 'stalker' | 'smiler', x: number, z: number) => {
+            const target = type === 'stalker' ? stalkerPosRef.current : smilerPosRef.current;
+            if (target) target.set(x, target.y, z);
+          },
+
+          showToast: (msg: string) => {
+            showToastNotification(msg);
+          },
+          customUI: (html: string) => {
+            setScriptCustomUi(prev => ({
+              ...prev,
+              [modId]: html
+            }));
+          },
+
+          getKeys: () => keysPressed.current,
+
+          // API hook listeners
+          onInit: (cb: () => void) => { initCallbacks.push(cb); },
+          onTick: (cb: (dt: number, timestamp: number) => void) => { tickCallbacks.push(cb); },
+          onKeyDown: (cb: (key: string) => void) => { keyDownCallbacks.push(cb); },
+          onCollectTape: (cb: (tapeId: number) => void) => { collectTapeCallbacks.push(cb); },
+
+          _spawnedMeshes: spawnedMeshes
+        };
+
+        // Sandbox call
+        const runner = new Function('api', mod.jsCode);
+        runner(api);
+
+        const instance: RunningScriptInstance = {
+          id: modId,
+          name: mod.name,
+          onInit: () => initCallbacks.forEach(cb => { try { cb(); } catch (e) { console.error(e); } }),
+          onTick: (dt, ts) => tickCallbacks.forEach(cb => { try { cb(dt, ts); } catch (e) { console.error(e); } }),
+          onKeyDown: (key) => keyDownCallbacks.forEach(cb => { try { cb(key); } catch (e) { console.error(e); } }),
+          onCollectTape: (tapeId) => collectTapeCallbacks.forEach(cb => { try { cb(tapeId); } catch (e) { console.error(e); } }),
+          api
+        };
+
+        compileResults.push(instance);
+        instance.onInit?.();
+
+      } catch (err: any) {
+        console.error(`Dynamic script compile error for mod: ${mod.name}`, err);
+        showToastNotification(settings.language === 'en' 
+          ? `Compile Error: ${err.message}` 
+          : `模组 "${mod.cnName}" 执行报错: ${err.message}`
+        );
+      }
+    });
+
+    activeScriptInstancesRef.current = compileResults;
+
+    return () => {
+      compileResults.forEach(instance => {
+        try {
+          if (instance.api && instance.api._spawnedMeshes) {
+            instance.api._spawnedMeshes.forEach((mesh: THREE.Object3D) => {
+              if (sceneRef.current) {
+                sceneRef.current.remove(mesh);
+                if (mesh instanceof THREE.Mesh) {
+                  if (mesh.geometry) mesh.geometry.dispose();
+                  if (mesh.material) {
+                    if (Array.isArray(mesh.material)) {
+                      mesh.material.forEach((m: any) => m.dispose());
+                    } else {
+                      mesh.material.dispose();
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      });
+      activeScriptInstancesRef.current = [];
+    };
+  }, [activeModIds, customMods, showStartOverlay]);
+
+  const getModPlayerSpeedMultiplier = () => {
+    let mult = scriptPlayerSpeedMultiplierRef.current;
+    activeModIds.forEach(id => {
+      const cMod = customMods.find(m => m.id === id);
+      if (cMod && cMod.playerSpeedMultiplier !== undefined) {
+        mult = Math.max(mult, cMod.playerSpeedMultiplier);
+      }
+    });
+    return mult;
+  };
+
+  const getModMonsterSpeedMultiplier = () => {
+    let mult = scriptMonsterSpeedMultiplierRef.current;
+    activeModIds.forEach(id => {
+      const cMod = customMods.find(m => m.id === id);
+      if (cMod && cMod.monsterSpeedMultiplier !== undefined) {
+        mult = Math.max(mult, cMod.monsterSpeedMultiplier);
+      }
+    });
+    return mult;
+  };
+
+  const getModBatteryDecayMultiplier = () => {
+    let mult = scriptBatteryDecayMultiplierRef.current;
+    activeModIds.forEach(id => {
+      const cMod = customMods.find(m => m.id === id);
+      if (cMod && cMod.batteryDecayMultiplier !== undefined) {
+        mult = Math.min(mult, cMod.batteryDecayMultiplier);
+      }
+    });
+    return mult;
+  };
   
   // Custom Pause & Collectible states
   const [isPaused, setIsPaused] = useState(false);
@@ -233,6 +799,18 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         } catch (err) {}
       }
     }
+  };
+
+  const handleExitToMainMenu = () => {
+    setIsPaused(false);
+    setShowStartOverlay(true);
+    setActiveMenuSubTab('main');
+    if (audioEngineRef.current) {
+      audioEngineRef.current.setPaused(false);
+    }
+    try {
+      document.exitPointerLock();
+    } catch (err) {}
   };
 
   const handleExecuteCheat = (cmdLine: string) => {
@@ -616,6 +1194,15 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   const mapDataRef = useRef<MapData | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const closestTapeDistanceRef = useRef<number>(-1);
+  const closestTapeCoordsRef = useRef<THREE.Vector3 | null>(null);
+
+  // JavaScript Script-Injected physics multipliers
+  const scriptPlayerSpeedMultiplierRef = useRef<number>(1.0);
+  const scriptMonsterSpeedMultiplierRef = useRef<number>(1.0);
+  const scriptBatteryDecayMultiplierRef = useRef<number>(1.0);
+
   const gameTimeRef = useRef<number>(0);
   const rotationYRef = useRef<number>(0);
   const rotationXRef = useRef<number>(0);
@@ -672,6 +1259,17 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       }
       keysPressed.current[e.code] = true;
       if (e.shiftKey) isSprintingRef.current = true;
+
+      // Pass keysPressed down to Javascript script hooks
+      activeScriptInstancesRef.current.forEach(instance => {
+        try {
+          if (instance.onKeyDown) {
+            instance.onKeyDown(e.code);
+          }
+        } catch (err) {
+          console.error("Mod script onKeyDown error:", err);
+        }
+      });
 
       if (e.key === 'Tab' || e.code === 'Tab') {
         e.preventDefault();
@@ -854,6 +1452,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       antialias: true,
       powerPreference: 'high-performance',
     });
+    rendererRef.current = renderer;
     
     // Low-fi retro VHS scale: Set to 1.0 to ensure a beautiful, crisp and clean viewport!
     const resolutionScale = 1.0; 
@@ -1042,9 +1641,22 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     // Fine-grained tiling repeat for carpet to keep sand-speckles dense and realistic
     carpetTex.repeat.set(map.width * 2, map.height * 2);
 
+    // Compute dynamic colors from active mods
+    let activeWallColor = '#ffffff';
+    let activeFloorColor = '#ffffff';
+
+    activeModIds.forEach(id => {
+      const cMod = customMods.find(m => m.id === id);
+      if (cMod) {
+        if (cMod.wallColor) activeWallColor = cMod.wallColor;
+        if (cMod.floorColor) activeFloorColor = cMod.floorColor;
+      }
+    });
+
     // Materials
     const floorMaterial = new THREE.MeshStandardMaterial({
       map: carpetTex,
+      color: new THREE.Color(activeFloorColor),
       roughness: 0.95,
       metalness: 0.05,
     });
@@ -1057,6 +1669,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
     const wallMaterial = new THREE.MeshStandardMaterial({
       map: wallpaperTex,
+      color: new THREE.Color(activeWallColor),
       roughness: 0.7,
       metalness: 0.1,
     });
@@ -1653,9 +2266,25 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       const isSimulationPaused = isPausedRef.current || showStartOverlayRef.current || isSignalLostRef.current;
       if (isSimulationPaused) {
         dt = 0;
+        if (showStartOverlayRef.current) {
+          // Slow cinematic panning yaw and breathing pitch in main menu mode!
+          rotationYRef.current = (timestamp / 1000) * 0.05;
+          rotationXRef.current = Math.sin(timestamp / 1500) * 0.03 - 0.03;
+        }
       } else {
         gameTimeRef.current += dt;
       }
+
+      // Execute active mod scripts onTick handlers
+      activeScriptInstancesRef.current.forEach(instance => {
+        try {
+          if (instance.onTick) {
+            instance.onTick(dt, timestamp);
+          }
+        } catch (err) {
+          console.error("Script onTick error:", err);
+        }
+      });
 
       // (A) Movement Calculation (Standard WASD + Mobile JoyStick)
       let dX = 0;
@@ -1696,8 +2325,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       const keyboardSprint = keysPressed.current['ShiftLeft'] || keysPressed.current['ShiftRight'];
       isSprintingRef.current = !!(keyboardSprint || mobileSprintRef.current);
 
-      // Movement Speed (m/s) with developer console multiplier
-      const baseSpeed = (isSprintingRef.current ? 4.1 : 2.0) * speedMultiplierRef.current;
+      // Movement Speed (m/s) with developer console multiplier and active mods multiplier
+      const baseSpeed = (isSprintingRef.current ? 4.1 : 2.0) * speedMultiplierRef.current * getModPlayerSpeedMultiplier();
 
       // Update player position with simple 2D collision slide check
       const currentPos = playerPosRef.current.clone();
@@ -1923,7 +2552,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
       // Pacing speed (Crawls slowly up to 8.5m away, stalks/chases when closer!)
       // Speeds increased significantly as requested to match the high tension chasing behavior!
-      const stalkSpeed = currentDistance < 8.5 ? 3.0 : 1.5;
+      const stalkSpeed = (currentDistance < 8.5 ? 3.0 : 1.5) * getModMonsterSpeedMultiplier();
 
       if (currentDistance > 0.1) {
         const nextStalkerPos = stalkerWorldPos.clone().addScaledVector(stalkDirection, stalkSpeed * dt);
@@ -1994,7 +2623,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       smilerDirection.normalize();
 
       // Smiler crawls forward floatily (fast when close, slow/spooky pacing when far)
-      const smilerSpeed = currentSmilerDist < 8.5 ? 3.5 : 1.35;
+      const smilerSpeed = (currentSmilerDist < 8.5 ? 3.5 : 1.35) * getModMonsterSpeedMultiplier();
 
       if (currentSmilerDist > 0.1) {
         const nextSmilerPos = smilerWorldPos.clone().addScaledVector(smilerDirection, smilerSpeed * dt);
@@ -2083,7 +2712,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       if (!isSimulationPaused) {
         const oldBattery = batteryLevelRef.current;
         // Drains 4% per real-world minute (4% / 60s = 0.06667% per second)
-        batteryLevelRef.current = Math.max(0, batteryLevelRef.current - (4 / 60) * dt);
+        // Drain handheld battery over time with active mods multiplier
+        batteryLevelRef.current = Math.max(0, batteryLevelRef.current - (4 / 60) * dt * getModBatteryDecayMultiplier());
 
         // Update the HUD periodically or immediately on depletion
         if (Math.abs(oldBattery - batteryLevelRef.current) > 0.02 || batteryLevelRef.current === 0) {
@@ -2180,14 +2810,19 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
         // Recalculate if anything was picked up
         let currentMinDist = Infinity;
+        let closestTapeMesh: THREE.Mesh | null = null;
         activeTapesRef.current.forEach(t => {
           const dx = playerPosRef.current.x - t.mesh.position.x;
           const dz = playerPosRef.current.z - t.mesh.position.z;
           const distToTape2D = Math.sqrt(dx * dx + dz * dz);
           if (distToTape2D < currentMinDist) {
             currentMinDist = distToTape2D;
+            closestTapeMesh = t.mesh;
           }
         });
+
+        closestTapeDistanceRef.current = currentMinDist === Infinity ? -1 : currentMinDist;
+        closestTapeCoordsRef.current = closestTapeMesh ? (closestTapeMesh as THREE.Mesh).position : null;
 
         // Dispatch distance telemetry event for the HUD's proximity tracker
         window.dispatchEvent(new CustomEvent('backrooms_closest_tape_distance', { 
@@ -2301,7 +2936,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       smilerGeo.dispose();
       smilerShaderMat.dispose();
     };
-  }, [seed, audioActive]);
+  }, [seed, audioActive, activeModIds, customMods]);
 
   // Touch handlers for mobile Joystick
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -2385,6 +3020,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     touchLook.current.active = false;
   };
 
+  const isEn = settings.language === 'en';
+
   return (
     <div
       id="viewport-container"
@@ -2402,6 +3039,18 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           imageRendering: settings.vhsEffects ? 'pixelated' : 'auto',
         }}
       />
+
+      {/* Script Injected Custom dynamic UI overlays */}
+      {Object.entries(scriptCustomUi).map(([modId, html]) => {
+        if (!html) return null;
+        return (
+          <div 
+            key={modId}
+            className="absolute inset-0 pointer-events-none z-30 font-mono text-zinc-300 select-none"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        );
+      })}
 
       {/* Developer Cheat Terminal Overlay */}
       {showCheatTerminal && (
@@ -2454,63 +3103,399 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       )}
 
       {/* Point Lock / Click instructions Start Overlay */}
-      {showStartOverlay && (
-        <div
-          id="click-to-start-overlay"
-          onClick={handleStartInteraction}
-          className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/85 backdrop-blur-sm transition-all duration-300"
-        >
-          <div className="text-center p-8 max-w-md mx-6 select-none bg-zinc-900 border border-yellow-600/30 rounded-xl shadow-2xl shadow-yellow-950/20">
-            <h1 className="text-2xl font-sans tracking-tight font-semibold text-yellow-500 mb-2">
-              THE BACKROOMS
-            </h1>
-            <p className="text-xs text-zinc-400 font-mono mb-8">
-              AESTHETIC VHS CAMCORDER SIMULATOR
-            </p>
+      {showStartOverlay && (() => {
+        const isEn = settings.language === 'en';
+        return (
+          <div
+            id="backinside-main-menu-container"
+            className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-black/60 pointer-events-auto transition-all duration-300"
+          >
+            {/* Corner global language icon toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSettingsChange({ ...settings, language: settings.language === 'zh' ? 'en' : 'zh' });
+              }}
+              className="absolute top-6 right-6 z-[60] bg-zinc-950/90 border border-yellow-500/30 px-3 py-1.5 rounded-lg text-xs font-mono text-yellow-500 font-bold hover:bg-yellow-500/10 transition-all shadow-xl flex items-center gap-1.5 select-none hover:border-yellow-400 cursor-pointer text-glow"
+            >
+              🌐 {isEn ? '文 / 简体中文' : 'EN / English'}
+            </button>
 
-            {/* Instruction Layout */}
-            <div className="grid grid-cols-2 gap-4 text-left border-y border-zinc-800 py-5 mb-8">
-              <div>
-                <span className="text-[10px] text-zinc-500 font-mono uppercase block mb-1">
-                  Keyboard & Mouse
-                </span>
-                <span className="text-xs font-mono text-zinc-300 block">
-                  • <b>W A S D</b> to Walk
-                </span>
-                <span className="text-xs font-mono text-zinc-300 block">
-                  • <b>SHIFT</b> to Sprint
-                </span>
-                <span className="text-xs font-mono text-zinc-300 block">
-                  • <b>Mouse</b> to Look
-                </span>
+            {/* Inner centralized menu frame */}
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-zinc-950/85 md:w-[700px] w-[95vw] min-h-[460px] border border-zinc-800/80 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-6 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-300 select-none overflow-hidden"
+            >
+              {/* Retro VHS scanlines style on the menu card itself */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px]" />
+
+              {/* Left Column: Brand, Title, Navigation choices */}
+              <div className="md:w-1/3 flex flex-col justify-between border-b md:border-b-0 md:border-r border-zinc-900 pb-4 md:pb-0 md:pr-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+                    <span className="text-[10px] font-mono text-red-500 font-bold tracking-widest uppercase">● REC 0:00:00</span>
+                  </div>
+                  <h1 className="text-4xl font-extrabold tracking-tight text-yellow-500 font-sans uppercase leading-none drop-shadow-md select-text">
+                    BackinSide
+                  </h1>
+                  <p className="text-[9px] text-zinc-500 font-mono mt-1 tracking-wider uppercase">
+                    {isEn ? "LIMINAL VHS CORE COMPANION" : "声学后室 · VHS 录制模拟"}
+                  </p>
+                </div>
+
+                {/* Vertical Interactive Menu Tabs List */}
+                <div className="flex flex-col gap-2.5 mt-6 md:mt-0">
+                  <button
+                    onClick={handleStartInteraction}
+                    className="group relative flex items-center justify-between text-left px-3 py-2.5 rounded-xl border border-yellow-500 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 font-bold text-xs uppercase transition-all tracking-wider font-mono cursor-pointer shadow-lg shadow-yellow-950/20"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Compass className="w-4 h-4 group-hover:rotate-45 transition-transform" />
+                      {isEn ? "Enter" : "进入游戏"}
+                    </span>
+                    <span className="text-[8px] bg-yellow-500 text-zinc-950 font-black px-1.5 py-0.5 rounded leading-none">START</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveMenuSubTab('settings')}
+                    className={`flex items-center gap-1.5 text-left px-3 py-2.5 rounded-xl text-xs uppercase tracking-wider font-mono cursor-pointer border transition-all ${
+                      activeMenuSubTab === 'settings'
+                        ? 'border-yellow-500/50 bg-zinc-900 text-yellow-500 font-bold'
+                        : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Sliders className="w-4 h-4" />
+                    {isEn ? "Settings" : "环境设置"}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveMenuSubTab('mods')}
+                    className={`flex items-center gap-1.5 text-left px-3 py-2.5 rounded-xl text-xs uppercase tracking-wider font-mono cursor-pointer border transition-all ${
+                      activeMenuSubTab === 'mods'
+                        ? 'border-yellow-500/50 bg-zinc-900 text-yellow-500 font-bold'
+                        : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Disc className="w-4 h-4" />
+                    {isEn ? "MODS" : "拓展模组"}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveMenuSubTab('collectibles')}
+                    className={`flex items-center gap-1.5 text-left px-3 py-2.5 rounded-xl text-xs uppercase tracking-wider font-mono cursor-pointer border transition-all ${
+                      activeMenuSubTab === 'collectibles'
+                        ? 'border-yellow-500/50 bg-zinc-900 text-yellow-500 font-bold'
+                        : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Library className="w-4 h-4" />
+                    {isEn ? "Collectibles" : "珍藏归档"}
+                  </button>
+                </div>
+
+                <div className="hidden md:block">
+                  <p className="text-[8px] text-zinc-600 font-mono leading-tight uppercase select-text">
+                    {isEn ? "SYSTEM BUILD: v0.96-MODS\nPRESS ESC TO EXIT MOUSE LOCK" : "系统版本: v0.96-模组框架\n游戏运行中按 ESC 释放镜头锁定"}
+                  </p>
+                </div>
               </div>
-              <div className="border-l border-zinc-800 pl-4">
-                <span className="text-[10px] text-zinc-500 font-mono uppercase block mb-1">
-                  Mobile / Touch
-                </span>
-                <span className="text-xs font-mono text-zinc-300 block">
-                  • Left side: <b>Joystick</b>
-                </span>
-                <span className="text-xs font-mono text-zinc-300 block">
-                  • Right side: <b>Drag Look</b>
-                </span>
+
+              {/* Right Column: Display panels depending on selection */}
+              <div className="flex-1 overflow-y-auto max-h-[380px] pr-1.5 custom-scrollbar flex flex-col justify-between">
+                {activeMenuSubTab === 'main' && (
+                  <div className="flex flex-col gap-4 h-full justify-center text-left">
+                    <div>
+                      <h3 className="text-sm font-bold text-yellow-500/90 mb-2 font-sans tracking-wide uppercase">
+                        {isEn ? "RECONSTRUCTED LANDSCAPE FEED" : "声学空间重组传输协议"}
+                      </h3>
+                      <p className="text-xs text-zinc-400 leading-relaxed font-sans">
+                        {isEn 
+                          ? "Welcome to BackinSide. This camera terminal simulation reconstructs spatial matrices of Level 0. Traverse the corridor grids to find decrypted telemetry tapes, maintain battery core nodes, and evade the Smile."
+                          : "欢迎来到 BackinSide 摄像记录仪系统。本控制终端真实重现了 Level 0 壁纸迷宫的空无走廊。你将在不断改变的廊道中破译磁带，补充核芯电能，并在深邃幽暗中躲避致命笑魇的追猎。"}
+                      </p>
+                    </div>
+
+                    <div className="bg-zinc-900/50 border border-zinc-900 rounded-xl p-3.5 flex flex-col gap-2 text-left">
+                      <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider mb-2 font-bold border-b border-zinc-800/40 pb-1.5">
+                        🎮 {isEn ? "CONTROL INSTRUCTIONS" : "多端控制规范"}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 text-[11px] text-zinc-400 font-mono">
+                        <div>
+                          <span className="text-[9px] text-zinc-500 uppercase block mb-0.5">{isEn ? "KEYBOARD" : "键盘外设"}</span>
+                          <span>• <b>W A S D</b> - {isEn ? "Walk" : "走动"}<br />• <b>SHIFT</b> - {isEn ? "Sprint" : "疾跑"}<br />• <b>Mouse</b> - {isEn ? "Look" : "环顾"}</span>
+                        </div>
+                        <div className="border-l border-zinc-800/60 pl-3">
+                          <span className="text-[9px] text-zinc-500 uppercase block mb-0.5">{isEn ? "TOUCH/MOBILE" : "移动触屏"}</span>
+                          <span>• {isEn ? "Left: Joystick" : "左侧: 运动摇杆"}<br />• {isEn ? "Right: Move camera" : "右侧: 划动转向"}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeMenuSubTab === 'settings' && (
+                  <div className="flex flex-col gap-4 text-left">
+                    <div>
+                      <h3 className="text-sm font-bold text-yellow-500/90 font-sans tracking-wide uppercase mb-1 flex items-center gap-1.5">
+                        <Sliders className="w-4 h-4" />
+                        {isEn ? "CAMCORDER OPTION SETTINGS" : "摄像环境控制参数选项"}
+                      </h3>
+                      <p className="text-[10px] text-zinc-500 font-mono leading-none">{isEn ? "CONFIGURE CAMERA COV AND POST-FILTERS" : "调整摄像机视角大小、鼠标转向灵敏度与 VHS 畸变属性"}</p>
+                    </div>
+
+                    <div className="flex flex-col gap-3 mt-1 text-xs">
+                      {/* FOV */}
+                      <div className="flex flex-col gap-1 bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-xl">
+                        <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
+                          <span>{isEn ? "FOV View Angle" : "广角视野 (FOV)"}</span>
+                          <span className="text-yellow-500 font-black">{settings.fov}°</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="60"
+                          max="110"
+                          value={settings.fov}
+                          onChange={(e) => onSettingsChange({ ...settings, fov: parseInt(e.target.value, 10) })}
+                          className="w-full accent-yellow-500 bg-zinc-950 rounded h-1 mt-1 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Mouse Sensitivity */}
+                      <div className="flex flex-col gap-1 bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-xl">
+                        <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
+                          <span>{isEn ? "Swivel Sensitivity" : "镜头转向灵敏度"}</span>
+                          <span className="text-yellow-500 font-black">{settings.mouseSensitivity}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          value={settings.mouseSensitivity}
+                          onChange={(e) => onSettingsChange({ ...settings, mouseSensitivity: parseInt(e.target.value, 10) })}
+                          className="w-full accent-yellow-500 bg-zinc-950 rounded h-1 mt-1 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Toggles */}
+                      <div className="grid grid-cols-2 gap-2 mt-1">
+                        <button
+                          onClick={() => onSettingsChange({ ...settings, cameraBobbing: !settings.cameraBobbing })}
+                          className={`px-3 py-2 rounded-xl text-[10px] font-mono font-bold border flex flex-col items-center justify-center transition-all cursor-pointer ${
+                            settings.cameraBobbing
+                              ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500/15'
+                              : 'bg-zinc-900 border-zinc-850 hover:bg-zinc-850 text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          <span className="text-[11px] mb-0.5">{isEn ? "CAMERA BOBBING" : "手震防抖晃动"}</span>
+                          <span className="text-[8px] bg-black/40 px-1 py-0.5 rounded leading-none mt-0.5">{settings.cameraBobbing ? (isEn ? "TRUE" : "开启") : (isEn ? "FALSE" : "关闭")}</span>
+                        </button>
+
+                        <button
+                          onClick={() => onSettingsChange({ ...settings, vhsEffects: !settings.vhsEffects })}
+                          className={`px-3 py-2 rounded-xl text-[10px] font-mono font-bold border flex flex-col items-center justify-center transition-all cursor-pointer ${
+                            settings.vhsEffects
+                              ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500/15'
+                              : 'bg-zinc-900 border-zinc-850 hover:bg-zinc-850 text-zinc-500 hover:text-zinc-300'
+                          }`}
+                        >
+                          <span className="text-[11px] mb-0.5">{isEn ? "VHS CRT EFFECT" : "VHS 复古扫描滤波"}</span>
+                          <span className="text-[8px] bg-black/40 px-1 py-0.5 rounded leading-none mt-0.5">{settings.vhsEffects ? (isEn ? "TRUE" : "开启") : (isEn ? "FALSE" : "关闭")}</span>
+                        </button>
+                        <div className="flex flex-col justify-center bg-zinc-900/30 border border-zinc-900 px-3 py-1.5 rounded-xl">
+                          <span className="text-[8px] font-mono font-bold text-zinc-500 uppercase tracking-widest">{isEn ? "SPATIAL GRID SEED" : "当前生成坐标种子"}</span>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <input
+                              type="text"
+                              value={seed}
+                              onChange={(e) => onSeedChange(e.target.value)}
+                              className="bg-black/50 border border-zinc-850 text-[10px] font-mono text-yellow-500 rounded px-1.5 py-0.5 w-full select-all outline-hidden text-center"
+                            />
+                            <button
+                              onClick={() => {
+                                const randomBytes = Math.floor(Math.random() * 999999 + 100000);
+                                onSeedChange(`seed_${randomBytes}`);
+                              }}
+                              className="bg-zinc-900 text-yellow-500 hover:bg-zinc-850 hover:text-yellow-400 p-1 rounded-md transition-colors cursor-pointer border border-zinc-850"
+                              title={isEn ? "Randomize" : "随机网格"}
+                            >
+                              <RefreshCw className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeMenuSubTab === 'mods' && (
+                  <div className="flex flex-col gap-3 text-left">
+                    <div>
+                      <h3 className="text-sm font-bold text-yellow-500/90 font-sans tracking-wide uppercase mb-1 flex items-center gap-1.5">
+                        <Disc className="w-4 h-4" />
+                        {isEn ? "MODULAR ADDON MANAGER" : "游戏拓展模组管理中心"}
+                      </h3>
+                      <p className="text-[10px] text-zinc-500 font-mono leading-none">{isEn ? "RUN DYNAMIC JS SCRIPTS OR UPLOAD CUSTOM APPS" : "这里是 JavaScript 动态注入系统，允许加载脚本道具、自定义实体 AI/逻辑、和独特的 HUD UI"}</p>
+                    </div>
+
+                    {/* MOD LIST */}
+                    <div className="flex flex-col gap-2 mt-1">
+                      {/* Preset Mods */}
+                      {SCRIPT_PRESETS.map((item) => {
+                        const isLoaded = activeModIds.includes(item.id);
+                        return (
+                          <div 
+                            key={item.id}
+                            onClick={() => toggleMod(item.id)}
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex justify-between items-start ${
+                              isLoaded 
+                                ? 'bg-yellow-500/5 border-yellow-500/30' 
+                                : 'bg-zinc-900/30 border-zinc-900/60 hover:border-zinc-800 hover:bg-zinc-900/40'
+                            }`}
+                          >
+                            <div className="max-w-[85%]">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="font-mono font-bold text-[11px] text-yellow-500">{isEn ? item.name : item.cnName}</span>
+                                <span className="text-[8px] bg-zinc-900 border border-zinc-800 text-yellow-500px px-1 rounded font-mono select-none text-yellow-600 font-bold">SCRIPT PRESET</span>
+                              </div>
+                              <p className="text-[9.5px] text-zinc-400 select-text leading-snug">{isEn ? item.description : item.cnDescription}</p>
+                            </div>
+                            <div className="flex items-center justify-center p-0.5 mt-0.5">
+                              <input 
+                                type="checkbox" 
+                                checked={isLoaded}
+                                readOnly
+                                className="w-3.5 h-3.5 accent-yellow-500 rounded cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Custom uploaded mods list */}
+                      {customMods.map((item) => {
+                        const isLoaded = activeModIds.includes(item.id);
+                        return (
+                          <div 
+                            key={item.id}
+                            onClick={() => toggleMod(item.id)}
+                            className={`p-2.5 rounded-xl border transition-all cursor-pointer flex justify-between items-start ${
+                              isLoaded 
+                                ? 'bg-emerald-500/5 border-emerald-500/30' 
+                                : 'bg-zinc-900/30 border-zinc-900/60 hover:border-zinc-800 hover:bg-zinc-900/40'
+                            }`}
+                          >
+                            <div className="max-w-[78%]">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="font-mono font-bold text-[11px] text-emerald-400">{isEn ? item.name : item.cnName}</span>
+                                <span className="text-[8px] bg-zinc-900 border border-zinc-800 text-emerald-555 px-1 rounded font-mono select-none text-emerald-500 font-bold">JS PLUGIN</span>
+                              </div>
+                              <p className="text-[9.5px] text-zinc-400 select-text leading-snug">{isEn ? item.description : item.cnDescription}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={(e) => deleteCustomMod(item.id, e)}
+                                className="text-[9px] font-mono text-zinc-400 hover:text-red-400 bg-zinc-950 border border-zinc-900 hover:border-red-500/30 p-1 px-2 rounded-lg cursor-pointer"
+                                title={isEn ? "Uninstall Mod" : "移除模组"}
+                              >
+                                {isEn ? "DEL" : "卸载"}
+                              </button>
+                              <input 
+                                type="checkbox" 
+                                checked={isLoaded}
+                                readOnly
+                                className="w-3.5 h-3.5 accent-emerald-500 rounded cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Custom Mod File Upload Loader */}
+                      <div className="border border-dashed border-zinc-800 rounded-xl p-4 flex flex-col items-center justify-center bg-zinc-950/40 text-center relative hover:bg-zinc-950/60 duration-150 mt-1.5">
+                        <Disc className="w-6 h-6 text-zinc-500 mb-1.5 animate-pulse" />
+                        <span className="text-[10px] font-mono text-zinc-300 font-bold">{isEn ? "UPLOAD SCRIPT MOD FILE (.js, .json)" : "上传外部自定义脚本模组 (.js, .json)"}</span>
+                        <span className="text-[8.5px] text-zinc-500 font-mono mt-0.5 max-w-[280px]">{isEn ? "Directly upload .js plugins calling api hooks: onInit, onTick, onKeyDown, customUI, spawnMesh." : "可直接上传原生 .js 脚本在沙盒中安全热插拔运行，调用 api 全面操控三维后室"}</span>
+                        <input
+                          type="file"
+                          accept=".json,.js"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (evt) => {
+                                const text = evt.target?.result as string;
+                                if (text) handleCustomModUpload(file.name, text);
+                              };
+                              reader.readAsText(file);
+                            }
+                          }}
+                          className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeMenuSubTab === 'collectibles' && (
+                  <div className="flex flex-col gap-3 text-left">
+                    <div>
+                      <h3 className="text-sm font-bold text-yellow-500/90 font-sans tracking-wide uppercase mb-1 flex items-center gap-1.5">
+                        <Library className="w-4 h-4" />
+                        {isEn ? "CASSETTE COLLECTIONS DECK" : "黄沙迷宫音频唱片珍藏架"}
+                      </h3>
+                      <p className="text-[10px] text-zinc-500 font-mono leading-none">{isEn ? "COLLECT TAPES IN THE SECTORS TO UNLOCK 3D VIEW" : "在黄色走廊各角落捡拾磁带，可放入底座播放背景音乐或进入 3D 精细拖拽检视"}</p>
+                    </div>
+
+                    {/* Collected items ratio */}
+                    <div className="text-[9.5px] font-mono text-zinc-400 mt-1 flex justify-between bg-zinc-900/20 border border-zinc-900 px-3 py-1.5 rounded-xl">
+                      <span>{isEn ? "DECRYPT STICK STATUS" : "解码磁片完成比例"}</span>
+                      <span className="text-yellow-500 font-bold">{collectedTapes.length} / 12 {isEn ? "COLLECTED" : "已收录"}</span>
+                    </div>
+
+                    {/* Compact Grid of Tapes */}
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      {CASSETTE_LIST.map((tape) => {
+                        const isCollected = collectedTapes.includes(tape.id);
+                        return (
+                          <div
+                            key={tape.id}
+                            onClick={() => {
+                              if (isCollected) {
+                                setSelectedTape(tape);
+                                setZoomedTape(tape);
+                              } else {
+                                showToastNotification(isEn ? "This signal carrier is currently locked" : "该视频磁片波段尚未寻获，继续探索！");
+                              }
+                            }}
+                            className={`p-2 rounded-xl border flex flex-col justify-between h-[82px] cursor-pointer transition-all ${
+                              isCollected
+                                ? 'bg-yellow-500/5 hover:bg-yellow-500/10 border-yellow-500/22 text-yellow-500'
+                                : 'bg-zinc-950/20 border-zinc-950 opacity-40 text-zinc-650 cursor-not-allowed hover:bg-zinc-950/35'
+                            }`}
+                          >
+                            <div className="truncate font-mono font-bold text-[9.5px]">
+                              {isCollected ? (isEn ? tape.name : tape.cnName) : `[LOCK-0${tape.id}]`}
+                            </div>
+                            <div className="flex justify-between items-end">
+                              <span className="text-[8px] font-mono tracking-wide px-1 rounded leading-none bg-black/60 text-zinc-500 uppercase">{isEn ? `SLOT ${tape.id}` : `插槽 ${tape.id}`}</span>
+                              {isCollected ? (
+                                <Disc className="w-3.5 h-3.5 text-yellow-500 animate-spin" style={{ animationDuration: '6s' }} />
+                              ) : (
+                                <Lock className="w-3.5 h-3.5 text-zinc-600" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-
-            <button
-              id="btn-start"
-              onClick={handleStartInteraction}
-              className="w-full font-mono bg-yellow-500 hover:bg-yellow-400 text-zinc-950 font-bold py-3 px-6 rounded text-sm transition-colors cursor-pointer tracking-wider"
-            >
-              RECORDING FEED STATUS: START
-            </button>
-            
-            <p className="text-[10px] text-zinc-500 font-mono mt-4">
-              Clicking authorizes the simulated audio hum & locks pointers. Esc to unlock.
-            </p>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Pointer Lock guide bubble if pointer locks out but not showing overlay */}
       {!showStartOverlay && !pointerLocked && !isTouchDevice && window.innerWidth >= 1024 && (
@@ -2520,10 +3505,10 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 select-none text-center bg-black/75 border border-yellow-600/20 rounded-lg p-5 cursor-pointer hover:bg-black/85"
         >
           <p className="text-sm font-semibold text-yellow-500 font-mono mb-1 blinking">
-            PAUSED
+            {isEn ? "PAUSED" : "已暂停" }
           </p>
           <p className="text-[11px] text-zinc-400 font-mono">
-            Click anywhere inside view to resume look lock
+            {isEn ? "Click anywhere inside view to resume look lock" : "点击屏幕任意位置恢复视角锁定"}
           </p>
         </div>
       )}
@@ -2613,7 +3598,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           play: isEn ? "PLAY" : "放音",
           pause: isEn ? "PAUSE" : "暂停",
           stop: isEn ? "STOP" : "停止",
-          continueExplore: isEn ? "CONTINUE RECORDING" : "继续探索后室 (RESUME)",
+          continueExplore: isEn ? "CONTINUE RECORDING" : "继续探索后室",
           pressPKey: isEn ? "PRESS P KEY TO RESUME RECORD FEED" : "按 [P] 键恢复摄像机实况录制",
           logsHeader: isEn ? "LEVEL 0 COLLECTION LOGS" : "Level 0 破译磁带珍藏架",
           deckFeedIndex: isEn ? "DECK FEED INDEX" : "终端破译磁片档案索引",
@@ -2752,7 +3737,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                   </div>
 
                   {/* Continue Exploration Button (Now placed above options) */}
-                  <div className="mt-1">
+                  <div className="mt-1 flex flex-col gap-2">
                     <button
                       id="btn-resume-explore"
                       onClick={() => triggerPauseStatus(false)}
@@ -2761,7 +3746,17 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                       <Compass className="w-4 h-4" />
                       {t.continueExplore}
                     </button>
-                    <p className="text-center text-[8px] text-zinc-500 font-mono mt-1.5 uppercase tracking-widest leading-none">
+
+                    <button
+                      id="btn-exit-to-menu"
+                      onClick={handleExitToMainMenu}
+                      className="w-full font-mono bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800/80 font-bold py-2.5 px-3 rounded-xl text-xs transition-all duration-100 cursor-pointer tracking-wider flex items-center justify-center gap-1.5 shadow-md"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      {isEn ? "EXIT TO MAIN MENU" : "退出到主界面"}
+                    </button>
+
+                    <p className="text-center text-[8px] text-zinc-500 font-mono mt-0.5 uppercase tracking-widest leading-none">
                       {t.pressPKey}
                     </p>
                   </div>
