@@ -855,6 +855,8 @@ api.onDispose(() => {
   });
 });
 
+let lastHtml = "";
+
 api.onTick((dt, ts) => {
   const currentPaint = sprayColors[selectedColorIdx];
   const activeStencilId = isStencilMode ? stencils[selectedStencilIdx].id : 'free';
@@ -1018,7 +1020,7 @@ api.onTick((dt, ts) => {
     </div>
   `;
 
-  api.customUI(`
+  const html = `
     <div style="position: absolute; bottom: 108px; left: 24px; pointer-events: auto; background: rgba(9,9,11,0.92); border: 2px solid ${currentPaint.hex}; border-radius: 16px; padding: 16px; width: 280px; font-family: 'JetBrains Mono', monospace; font-size: 11px; box-shadow: 0 8px 30px rgba(0,0,0,0.6), 0 0 15px ${currentPaint.hex}44; display: flex; flex-direction: column; gap: 10px;">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3f3f46; padding-bottom: 6px;">
         <span style="font-weight: 800; color: #fff; letter-spacing: 0.05em;">SPRAY BOTTLE ACTIVE</span>
@@ -1057,5 +1059,10 @@ api.onTick((dt, ts) => {
         HOLD [LEFT-MOUSE] TO SPRAY ON WALLS
       </div>
     </div>
-  `);
+  `;
+
+  if (html !== lastHtml) {
+    api.customUI(html);
+    lastHtml = html;
+  }
 });

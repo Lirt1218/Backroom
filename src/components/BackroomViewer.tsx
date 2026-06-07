@@ -14,7 +14,7 @@ import { GameSettings, MapData } from '../types';
 import { generateBackroom, getSeededRNG } from './BackroomGenerator';
 import { TextureGenerator } from './TextureGenerator';
 import { AudioEngine } from './AudioEngine';
-import { Play, Pause, Square, Lock, Music, Library, Compass, Disc, RefreshCw, Sliders, LogOut } from 'lucide-react';
+import { Play, Pause, Square, Lock, Music, Library, Compass, Disc, RefreshCw, Sliders, LogOut, User } from 'lucide-react';
 import { CASSETTE_LIST, TapeModelViewer, CassetteTape } from './TapeModelViewer';
 
 interface BackroomViewerProps {
@@ -227,7 +227,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   // State elements
   const [pointerLocked, setPointerLocked] = useState(false);
   const [showStartOverlay, setShowStartOverlay] = useState(true);
-  const [activeMenuSubTab, setActiveMenuSubTab] = useState<'main' | 'settings' | 'mods' | 'collectibles'>('main');
+  const [activeMenuSubTab, setActiveMenuSubTab] = useState<'main' | 'settings' | 'mods' | 'collectibles' | 'author'>('main');
 
   const [activeModIds, setActiveModIds] = useState<string[]>(() => {
     try {
@@ -1022,6 +1022,20 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       window.dispatchEvent(new CustomEvent('backrooms_tapes_updated'));
       setConsoleLogs(prev => [...prev, "WIPED TAPE COLLECTION STORAGE SECTOR."]);
       return;
+    }
+
+    if (typeof (window as any).executeConsoleCommand === 'function') {
+      try {
+        const result = (window as any).executeConsoleCommand(cmdLine);
+        if (result) {
+          if (typeof result === 'string') {
+            setConsoleLogs(prev => [...prev, result]);
+          }
+          return;
+        }
+      } catch (err) {
+        console.error("Mod console command error:", err);
+      }
     }
 
     setConsoleLogs(prev => [...prev, `COMMAND NOT DECODED: "${cmd}". TYPE "help" FOR LIST.`]);
@@ -3131,7 +3145,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
             {/* Inner centralized menu frame */}
             <div 
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950/85 md:w-[700px] w-[95vw] min-h-[460px] border border-zinc-800/80 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-6 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-300 select-none overflow-hidden"
+              className="relative bg-transparent md:w-[700px] w-[95vw] min-h-[460px] border border-zinc-800/80 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row gap-6 shadow-2xl animate-in fade-in zoom-in-95 duration-300 select-none overflow-hidden"
             >
               {/* Retro VHS scanlines style on the menu card itself */}
               <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px]" />
@@ -3168,8 +3182,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     onClick={() => setActiveMenuSubTab('settings')}
                     className={`flex items-center gap-1.5 text-left px-3 py-2.5 rounded-xl text-xs uppercase tracking-wider font-mono cursor-pointer border transition-all ${
                       activeMenuSubTab === 'settings'
-                        ? 'border-yellow-500/50 bg-zinc-900 text-yellow-500 font-bold'
-                        : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200'
+                        ? 'border-yellow-500/40 bg-transparent text-yellow-500 font-bold'
+                        : 'border-zinc-850/40 hover:border-zinc-700/60 bg-transparent text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
                     <Sliders className="w-4 h-4" />
@@ -3180,8 +3194,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     onClick={() => setActiveMenuSubTab('mods')}
                     className={`flex items-center gap-1.5 text-left px-3 py-2.5 rounded-xl text-xs uppercase tracking-wider font-mono cursor-pointer border transition-all ${
                       activeMenuSubTab === 'mods'
-                        ? 'border-yellow-500/50 bg-zinc-900 text-yellow-500 font-bold'
-                        : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200'
+                        ? 'border-yellow-500/40 bg-transparent text-yellow-500 font-bold'
+                        : 'border-zinc-850/40 hover:border-zinc-700/60 bg-transparent text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
                     <Disc className="w-4 h-4" />
@@ -3192,12 +3206,24 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     onClick={() => setActiveMenuSubTab('collectibles')}
                     className={`flex items-center gap-1.5 text-left px-3 py-2.5 rounded-xl text-xs uppercase tracking-wider font-mono cursor-pointer border transition-all ${
                       activeMenuSubTab === 'collectibles'
-                        ? 'border-yellow-500/50 bg-zinc-900 text-yellow-500 font-bold'
-                        : 'border-zinc-850 hover:border-zinc-700 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200'
+                        ? 'border-yellow-500/40 bg-transparent text-yellow-500 font-bold'
+                        : 'border-zinc-850/40 hover:border-zinc-700/60 bg-transparent text-zinc-400 hover:text-zinc-200'
                     }`}
                   >
                     <Library className="w-4 h-4" />
                     {isEn ? "Collectibles" : "珍藏归档"}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveMenuSubTab('author')}
+                    className={`flex items-center gap-1.5 text-left px-3 py-2.5 rounded-xl text-xs uppercase tracking-wider font-mono cursor-pointer border transition-all ${
+                      activeMenuSubTab === 'author'
+                        ? 'border-yellow-500/40 bg-transparent text-yellow-500 font-bold'
+                        : 'border-zinc-850/40 hover:border-zinc-700/60 bg-transparent text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <User className="w-4 h-4" />
+                    {isEn ? "Author" : "作者信息"}
                   </button>
                 </div>
 
@@ -3253,7 +3279,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
                     <div className="flex flex-col gap-3 mt-1 text-xs">
                       {/* FOV */}
-                      <div className="flex flex-col gap-1 bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-xl">
+                      <div className="flex flex-col gap-1 bg-transparent border border-zinc-850/40 p-2.5 rounded-xl">
                         <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
                           <span>{isEn ? "FOV View Angle" : "广角视野 (FOV)"}</span>
                           <span className="text-yellow-500 font-black">{settings.fov}°</span>
@@ -3269,7 +3295,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                       </div>
 
                       {/* Mouse Sensitivity */}
-                      <div className="flex flex-col gap-1 bg-zinc-900/30 border border-zinc-900 p-2.5 rounded-xl">
+                      <div className="flex flex-col gap-1 bg-transparent border border-zinc-850/40 p-2.5 rounded-xl">
                         <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
                           <span>{isEn ? "Swivel Sensitivity" : "镜头转向灵敏度"}</span>
                           <span className="text-yellow-500 font-black">{settings.mouseSensitivity}</span>
@@ -3291,7 +3317,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                           className={`px-3 py-2 rounded-xl text-[10px] font-mono font-bold border flex flex-col items-center justify-center transition-all cursor-pointer ${
                             settings.cameraBobbing
                               ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500/15'
-                              : 'bg-zinc-900 border-zinc-850 hover:bg-zinc-850 text-zinc-500 hover:text-zinc-300'
+                              : 'bg-transparent border-zinc-850/40 hover:bg-zinc-850/20 text-zinc-500 hover:text-zinc-300'
                           }`}
                         >
                           <span className="text-[11px] mb-0.5">{isEn ? "CAMERA BOBBING" : "手震防抖晃动"}</span>
@@ -3303,13 +3329,13 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                           className={`px-3 py-2 rounded-xl text-[10px] font-mono font-bold border flex flex-col items-center justify-center transition-all cursor-pointer ${
                             settings.vhsEffects
                               ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/30 hover:bg-yellow-500/15'
-                              : 'bg-zinc-900 border-zinc-850 hover:bg-zinc-850 text-zinc-500 hover:text-zinc-300'
+                              : 'bg-transparent border-zinc-850/40 hover:bg-zinc-850/20 text-zinc-500 hover:text-zinc-300'
                           }`}
                         >
                           <span className="text-[11px] mb-0.5">{isEn ? "VHS CRT EFFECT" : "VHS 复古扫描滤波"}</span>
                           <span className="text-[8px] bg-black/40 px-1 py-0.5 rounded leading-none mt-0.5">{settings.vhsEffects ? (isEn ? "TRUE" : "开启") : (isEn ? "FALSE" : "关闭")}</span>
                         </button>
-                        <div className="flex flex-col justify-center bg-zinc-900/30 border border-zinc-900 px-3 py-1.5 rounded-xl">
+                        <div className="flex flex-col justify-center bg-transparent border border-zinc-850/40 px-3 py-1.5 rounded-xl">
                           <span className="text-[8px] font-mono font-bold text-zinc-500 uppercase tracking-widest">{isEn ? "SPATIAL GRID SEED" : "当前生成坐标种子"}</span>
                           <div className="flex items-center gap-1.5 mt-1">
                             <input
@@ -3356,8 +3382,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                             onClick={() => toggleMod(item.id)}
                             className={`p-2.5 rounded-xl border transition-all cursor-pointer flex justify-between items-start ${
                               isLoaded 
-                                ? 'bg-yellow-500/5 border-yellow-500/30' 
-                                : 'bg-zinc-900/30 border-zinc-900/60 hover:border-zinc-800 hover:bg-zinc-900/40'
+                                ? 'bg-transparent border-yellow-500/30' 
+                                : 'bg-transparent border-zinc-850/40 hover:border-zinc-700/60'
                             }`}
                           >
                             <div className="max-w-[85%]">
@@ -3388,8 +3414,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                             onClick={() => toggleMod(item.id)}
                             className={`p-2.5 rounded-xl border transition-all cursor-pointer flex justify-between items-start ${
                               isLoaded 
-                                ? 'bg-emerald-500/5 border-emerald-500/30' 
-                                : 'bg-zinc-900/30 border-zinc-900/60 hover:border-zinc-800 hover:bg-zinc-900/40'
+                                ? 'bg-transparent border-emerald-500/30' 
+                                : 'bg-transparent border-zinc-850/40 hover:border-zinc-700/60'
                             }`}
                           >
                             <div className="max-w-[78%]">
@@ -3419,7 +3445,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                       })}
 
                       {/* Custom Mod File Upload Loader */}
-                      <div className="border border-dashed border-zinc-800 rounded-xl p-4 flex flex-col items-center justify-center bg-zinc-950/40 text-center relative hover:bg-zinc-950/60 duration-150 mt-1.5">
+                      <div className="border border-dashed border-zinc-800 rounded-xl p-4 flex flex-col items-center justify-center bg-transparent text-center relative hover:bg-zinc-950/20 duration-150 mt-1.5">
                         <Disc className="w-6 h-6 text-zinc-500 mb-1.5 animate-pulse" />
                         <span className="text-[10px] font-mono text-zinc-300 font-bold">{isEn ? "UPLOAD SCRIPT MOD FILE (.js, .json)" : "上传外部自定义脚本模组 (.js, .json)"}</span>
                         <span className="text-[8.5px] text-zinc-500 font-mono mt-0.5 max-w-[280px]">{isEn ? "Directly upload .js plugins calling api hooks: onInit, onTick, onKeyDown, customUI, spawnMesh." : "可直接上传原生 .js 脚本在沙盒中安全热插拔运行，调用 api 全面操控三维后室"}</span>
@@ -3455,7 +3481,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     </div>
 
                     {/* Collected items ratio */}
-                    <div className="text-[9.5px] font-mono text-zinc-400 mt-1 flex justify-between bg-zinc-900/20 border border-zinc-900 px-3 py-1.5 rounded-xl">
+                    <div className="text-[9.5px] font-mono text-zinc-400 mt-1 flex justify-between bg-transparent border border-zinc-850/40 px-3 py-1.5 rounded-xl">
                       <span>{isEn ? "DECRYPT STICK STATUS" : "解码磁片完成比例"}</span>
                       <span className="text-yellow-500 font-bold">{collectedTapes.length} / 12 {isEn ? "COLLECTED" : "已收录"}</span>
                     </div>
@@ -3477,8 +3503,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                             }}
                             className={`p-2 rounded-xl border flex flex-col justify-between h-[82px] cursor-pointer transition-all ${
                               isCollected
-                                ? 'bg-yellow-500/5 hover:bg-yellow-500/10 border-yellow-500/22 text-yellow-500'
-                                : 'bg-zinc-950/20 border-zinc-950 opacity-40 text-zinc-650 cursor-not-allowed hover:bg-zinc-950/35'
+                                ? 'bg-transparent hover:bg-yellow-500/10 border-yellow-500/22 text-yellow-500'
+                                : 'bg-transparent border-zinc-850/20 opacity-40 text-zinc-600 cursor-not-allowed hover:bg-zinc-950/20'
                             }`}
                           >
                             <div className="truncate font-mono font-bold text-[9.5px]">
@@ -3495,6 +3521,54 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                           </div>
                         );
                       })}
+                    </div>
+                  </div>
+                )}
+
+                {activeMenuSubTab === 'author' && (
+                  <div className="flex flex-col gap-4 text-left">
+                    <div>
+                      <h3 className="text-sm font-bold text-yellow-500/90 font-sans tracking-wide uppercase mb-1 flex items-center gap-1.5">
+                        <User className="w-4 h-4" />
+                        {isEn ? "Author Information" : "关于作者与开发团队"}
+                      </h3>
+                      <p className="text-[10px] text-zinc-500 font-mono leading-none">
+                        {isEn ? "CUSTOMIZE THE DEVELOPER CREDENTIALS DIRECTLY" : "读取并设置当前的关卡构建者及游戏版权归属凭证"}
+                      </p>
+                    </div>
+
+                    <div className="bg-transparent border border-zinc-850/40 p-4 rounded-xl flex flex-col gap-3 font-mono text-xs">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{isEn ? "Author Profile" : "当前作者签名"}</span>
+                        <div className="bg-transparent border border-zinc-850/40 p-3 rounded-lg text-zinc-300">
+                          <p className="text-sm font-bold text-yellow-500">{isEn ? "Level Architect" : "关卡设计师"}: {isEn ? "Standard Developer" : "默认开发者"}</p>
+                          <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                            {isEn 
+                              ? "You can customize this text page directly in the index files or src/components/BackroomViewer.tsx to set your custom creator coordinates, team signatures, or other operational credits."
+                              : "你可以通过编辑主文件或 src/components/BackroomViewer.tsx 来自定义并填写你的创作者信息、团队代表、社交账号或者是专属的游戏版本致谢内容。"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3.5 mt-1 border-t border-zinc-900 pt-3">
+                        <div>
+                          <span className="text-[10px] text-zinc-500 uppercase block mb-1">{isEn ? "Role" : "职责定位"}</span>
+                          <span className="text-zinc-300 text-xs">{isEn ? "Core Engine Developer" : "核心重构引擎设计"}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-zinc-500 uppercase block mb-1">{isEn ? "Current Matrix" : "运行网络"}</span>
+                          <span className="text-zinc-300 text-xs">Backroom-Level-0</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-zinc-900 pt-3 flex flex-col gap-1.5">
+                        <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{isEn ? "Editor Guide" : "修改导引说明"}</span>
+                        <p className="text-zinc-400 text-[11px] leading-relaxed">
+                          {isEn 
+                            ? "Look for 'src/components/BackroomViewer.tsx' inside the workspace. All game texts, labels, and mod settings can be customized securely by directly modifying the static variables or React HTML layers."
+                            : "本游戏的文本与逻辑均在工作区内完全公开。你可以通过修改 'src/components/BackroomViewer.tsx' 或者各个 mods 脚本的内容，来自定义调整游戏各项交互提示、血条属性、或者是模组UI布局。"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}

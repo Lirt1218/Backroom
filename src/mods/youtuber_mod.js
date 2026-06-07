@@ -1,6 +1,7 @@
-api.showToast("OMG! Backrooms Entity Clickbait Red Circle Mod [ENABLED]❗😱");
+api.showToast("OMG! Backrooms Entity Clickbait Red Circle Mod [ENABLED]!");
 
 const THREE = api.THREE;
+let lastHtml = "";
 
 api.onTick((dt, ts) => {
   const camera = api.getCamera();
@@ -14,8 +15,8 @@ api.onTick((dt, ts) => {
   const height = canvas.clientHeight;
 
   const targets = [
-    { name: 'STALKER ❗', key: 'stalker', yOffset: 1.3, color: '#ff2222' },
-    { name: 'SMILER 😱', key: 'smiler', yOffset: 1.45, color: '#ff5500' }
+    { name: 'STALKER', key: 'stalker', yOffset: 1.3, color: '#ff2222' },
+    { name: 'SMILER', key: 'smiler', yOffset: 1.45, color: '#ff5500' }
   ];
 
   let overlaysHtml = '';
@@ -111,5 +112,9 @@ api.onTick((dt, ts) => {
     `;
   }
 
-  api.customUI(styleTag + overlaysHtml);
+  const html = styleTag + overlaysHtml;
+  if (html !== lastHtml) {
+    api.customUI(html);
+    lastHtml = html;
+  }
 });

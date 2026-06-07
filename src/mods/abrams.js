@@ -15,7 +15,7 @@ const THREE = api.THREE;
 const scene = api.getScene();
 const dom = api.getRenderer().domElement;
 
-api.showToast("M1 Abrams Loaded! Approach nearby and press [F] to Drive. Left-click or [Space] to fire!");
+console.log("M1 Abrams Loaded! Approach nearby and press [F] to Drive.");
 
 let tankGroup = new THREE.Group();
 scene.add(tankGroup);
@@ -55,6 +55,17 @@ let tankEmissiveBoost = 0.05;
 // Tuning debug variables
 let showTuningPanel = false;
 let isTuningUnlocked = true; // Enabled by default so tuning is directly available with [P] key
+
+// Physical Bounding Box & Interaction Detector Tuning (as box cuboids in local space)
+let collisionHalfWCoeff = 1.85;
+let collisionHalfLCoeff = 3.65;
+let interactHalfWCoeff = 2.15;
+let interactHalfLCoeff = 3.95;
+let showDebugBoxes = false;     // Show/hide 3D helper box wireframes
+let isCollisionEnabled = false; // By default, tank has no collision unless turned on via secret hidden keys/codes
+
+let collisionBoxHelper = null;
+let interactBoxHelper = null;
 
 function updateTankMaterials() {
   if (!tankModel) return;
@@ -171,7 +182,6 @@ function updateTankMaterials() {
 window.enableAbramsTuning = () => {
   isTuningUnlocked = true;
   showTuningPanel = !showTuningPanel;
-  api.showToast(showTuningPanel ? "🔓 材质调参面板已解锁！" : "📁 材质面板已合并隐藏");
   playUnlockSnd();
   return "System: Material debugger toggled successfully!";
 };
@@ -204,11 +214,46 @@ window.setAbramsEmissive = (val) => {
   updateTankMaterials();
 };
 
+window.setCollisionHalfW = (val) => {
+  collisionHalfWCoeff = val;
+  const display = document.getElementById("val-collision-w");
+  if (display) display.innerText = val.toFixed(2);
+};
+
+window.setCollisionHalfL = (val) => {
+  collisionHalfLCoeff = val;
+  const display = document.getElementById("val-collision-l");
+  if (display) display.innerText = val.toFixed(2);
+};
+
+window.setInteractHalfW = (val) => {
+  interactHalfWCoeff = val;
+  const display = document.getElementById("val-interact-w");
+  if (display) display.innerText = val.toFixed(2);
+};
+
+window.setInteractHalfL = (val) => {
+  interactHalfLCoeff = val;
+  const display = document.getElementById("val-interact-l");
+  if (display) display.innerText = val.toFixed(2);
+};
+
+window.toggleDebugBoxes = (checked) => {
+  showDebugBoxes = checked;
+};
+
 window.resetAbramsMaterials = () => {
   tankRoughness = 0.50;
   tankMetalness = 0.45;
   tankDiffuseBoost = 6.00; // Reset preset to 6.00
   tankEmissiveBoost = 0.05;
+  
+  collisionHalfWCoeff = 1.85;
+  collisionHalfLCoeff = 3.65;
+  interactHalfWCoeff = 2.15;
+  interactHalfLCoeff = 3.95;
+  showDebugBoxes = false;
+  isCollisionEnabled = false;
   
   const rRough = document.getElementById("slider-roughness");
   if (rRough) rRough.value = String(tankRoughness);
@@ -229,14 +274,36 @@ window.resetAbramsMaterials = () => {
   if (rEmis) rEmis.value = String(tankEmissiveBoost);
   const displayEmis = document.getElementById("val-emissive");
   if (displayEmis) displayEmis.innerText = tankEmissiveBoost.toFixed(2);
+  
+  // Reset custom physical sliders
+  const rCollW = document.getElementById("slider-collision-w");
+  if (rCollW) rCollW.value = String(collisionHalfWCoeff);
+  const displayCollW = document.getElementById("val-collision-w");
+  if (displayCollW) displayCollW.innerText = collisionHalfWCoeff.toFixed(2);
+
+  const rCollL = document.getElementById("slider-collision-l");
+  if (rCollL) rCollL.value = String(collisionHalfLCoeff);
+  const displayCollL = document.getElementById("val-collision-l");
+  if (displayCollL) displayCollL.innerText = collisionHalfLCoeff.toFixed(2);
+
+  const rIntW = document.getElementById("slider-interact-w");
+  if (rIntW) rIntW.value = String(interactHalfWCoeff);
+  const displayIntW = document.getElementById("val-interact-w");
+  if (displayIntW) displayIntW.innerText = interactHalfWCoeff.toFixed(2);
+
+  const rIntL = document.getElementById("slider-interact-l");
+  if (rIntL) rIntL.value = String(interactHalfLCoeff);
+  const displayIntL = document.getElementById("val-interact-l");
+  if (displayIntL) displayIntL.innerText = interactHalfLCoeff.toFixed(2);
+
+  const checkboxDebug = document.getElementById("check-debug-boxes");
+  if (checkboxDebug) checkboxDebug.checked = showDebugBoxes;
 
   updateTankMaterials();
-  api.showToast("↩️ 材质参数恢复初始预设状态！");
 };
 
 window.closeAbramsTuning = () => {
   showTuningPanel = false;
-  api.showToast("📁 材质面板已关闭");
 };
 
 let worldTurretAngle = rotY; // Absolute world tracking direction of the turret
@@ -377,20 +444,17 @@ function handleRespawn() {
   
   if (aimDotMesh) aimDotMesh.visible = false;
   hasRepositionedInGame = true;
-  api.showToast("📍 Abrams tank re-spawned in front of you!");
 }
 
 function handleToggleRotate() {
   if (isDriving) return;
   autoRotate = !autoRotate;
-  api.showToast("🔄 Auto-rotation " + (autoRotate ? 'Enabled' : 'Disabled'));
 }
 
 function handleScaleAdjust(amount) {
   if (isDriving) return;
   currentScaleFactor = Math.max(0.1, Math.min(10.0, currentScaleFactor + amount));
   updateScale();
-  api.showToast("📐 Scale adjusted to " + currentScaleFactor.toFixed(1) + "x");
 }
 
 let autoScaleValue = 1.0;
@@ -520,11 +584,23 @@ function stopEngineSnd() {
 
 function handleEnterExit() {
   const currentPos = api.getPlayerPos();
-  const dist = Math.hypot(currentPos.x - tankPos.x, currentPos.z - tankPos.z);
+  const scaleVal = autoScaleValue * currentScaleFactor;
   
   if (!isDriving) {
-    if (dist > 4.5 * (currentScaleFactor / 6.0)) {
-       api.showToast("⚠️ Spacing too far! Move within 4.5 meters of the Abrams tank hull to mount.");
+    const dx = currentPos.x - tankPos.x;
+    const dz = currentPos.z - tankPos.z;
+    const theta = tankRotationY;
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+    // Correct world to local conversion:
+    const localX = dx * cosT - dz * sinT;
+    const localZ = dx * sinT + dz * cosT;
+    
+    // Width and Length of interaction detection cuboid (local space)
+    const interactW = interactHalfWCoeff * scaleVal;
+    const interactL = interactHalfLCoeff * scaleVal;
+    
+    if (Math.abs(localX) > interactW || Math.abs(localZ) > interactL) {
        return;
     }
     isDriving = true;
@@ -532,7 +608,6 @@ function handleEnterExit() {
     api.setCameraOverride(true);
     api.setPlayerSpeed(0.0); // Stop player walking
     playEntrySnd();
-    api.showToast("🟢 Entered Cockpit Panel! Mouse looks around turret, Left-click or Space fires 120mm.");
   } else {
     isDriving = false;
     isAimingView = false;
@@ -540,10 +615,50 @@ function handleEnterExit() {
     api.setCameraOverride(false);
     api.setPlayerSpeed(1.0); // Reset speed
     
-    // Position player safely to side
+    // Position player safely of the side (right hand side of the tank, completely clear of collision box)
     playExitSnd();
-    api.setPlayerPos(tankPos.x + Math.sin(tankRotationY) * 2.5, currentPos.y, tankPos.z + Math.cos(tankRotationY) * 2.5);
-    api.showToast("🔴 Disembarked. Restored standard combat speed.");
+    const exitOffsetDistW = collisionHalfWCoeff * scaleVal + 0.6;
+    const exitOffsetDistL = collisionHalfLCoeff * scaleVal + 0.8;
+    
+    // Priority exits to avoid getting stuck in walls: Rear, Right, Left, Front
+    const candidates = [
+      {
+        x: tankPos.x + Math.sin(tankRotationY) * exitOffsetDistL,
+        z: tankPos.z + Math.cos(tankRotationY) * exitOffsetDistL
+      },
+      {
+        x: tankPos.x + Math.cos(tankRotationY) * exitOffsetDistW,
+        z: tankPos.z - Math.sin(tankRotationY) * exitOffsetDistW
+      },
+      {
+        x: tankPos.x - Math.cos(tankRotationY) * exitOffsetDistW,
+        z: tankPos.z + Math.sin(tankRotationY) * exitOffsetDistW
+      },
+      {
+        x: tankPos.x - Math.sin(tankRotationY) * exitOffsetDistL,
+        z: tankPos.z - Math.cos(tankRotationY) * exitOffsetDistL
+      }
+    ];
+    
+    let finalExitX = candidates[0].x;
+    let finalExitZ = candidates[0].z;
+    let foundSafe = false;
+    
+    for (let c of candidates) {
+      if (!checkCollisionAtPoint(c.x, c.z)) {
+        finalExitX = c.x;
+        finalExitZ = c.z;
+        foundSafe = true;
+        break;
+      }
+    }
+    
+    if (!foundSafe) {
+      finalExitX = candidates[0].x;
+      finalExitZ = candidates[0].z;
+    }
+    
+    api.setPlayerPos(finalExitX, currentPos.y, finalExitZ);
   }
 }
 
@@ -655,7 +770,7 @@ if (GLTFLoader) {
   status = "Loading real Abrams GLB from storage...";
   loader.load("https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/abrams.glb", (gltf) => {
     status = "M1 Abrams GLB Loaded!";
-    api.showToast("M1 Abrams real high-precision model loaded successfully!");
+    console.log("M1 Abrams real high-precision model loaded successfully!");
     
     // Smoothly swap out the procedural fallback
     tankGroup.remove(rGroup);
@@ -1402,7 +1517,6 @@ function triggerExplosion(pos, hitNormal) {
         playDeathSound();
         api.setMonsterPos("stalker", -9999.0, -9999.0);
         window.stalkerDeadTime = Date.now() + 15000; // Remains dead for 15s
-        api.showToast("💀 120mm 坦克炮弹直接命中！Stalker (Bacteria) 已被瞬间轰杀，化作黑色粒子飞散！");
       }
     }
     
@@ -1416,7 +1530,6 @@ function triggerExplosion(pos, hitNormal) {
         playDeathSound();
         api.setMonsterPos("smiler", -9999.0, -9999.0);
         window.smilerDeadTime = Date.now() + 15000; // Remains dead for 15s
-        api.showToast("💀 120mm 坦克炮弹直接命中！Smiler 已被瞬间轰杀，化作黑色粒子飞散！");
       }
     }
   } catch (e) {
@@ -1709,37 +1822,42 @@ function fireCannon() {
 
 function triggerFireAttempt() {
   if (reloadTimer > 0) {
-    api.showToast("⚠️ Abrams System reloading! Please wait... [" + reloadTimer.toFixed(1) + "s]");
     return;
   }
   reloadTimer = 5.0;
   fireCannon();
 }
 
-function executeConsoleCommand(rawCmd) {
+window.executeConsoleCommand = (rawCmd) => {
   const cmd = rawCmd.trim().toLowerCase();
+  
+  if (cmd === "collision" || cmd === "/collision" || cmd === "clip" || cmd === "/clip" || cmd === "abrams_collision" || cmd === "tank_collision") {
+    isCollisionEnabled = !isCollisionEnabled;
+    updateDebugHelpers();
+    return `[TANK CONFIG] COLLISION STATUS RECONFIGURED: ${isCollisionEnabled ? "ENABLED (ON)" : "DISABLED (OFF)"}`;
+  }
+  
   if (cmd === "tuning" || cmd === "/tuning" || cmd === "abrams_tuning") {
     isTuningUnlocked = true;
     showTuningPanel = true;
     playUnlockSnd();
-    api.showToast("🔓 Command executed! Material adjustment panel loaded.");
+    return "[TANK CONFIG] TUNING INTERFACE LOADED.";
   } else if (cmd.startsWith("diffuse ") || cmd.startsWith("/diffuse ")) {
     const parts = cmd.split(" ");
     const num = parseFloat(parts[parts.length - 1]);
     if (!isNaN(num)) {
       window.setAbramsDiffuse(num);
-      api.showToast("🎯 Diffuse set to " + num.toFixed(2));
+      return "[TANK CONFIG] DIFFUSE COEFFICIENT UPDATED TO " + num.toFixed(2);
     }
+    return "[TANK CONFIG] ERROR: INVALID DIFFUSE VALUE.";
   } else if (cmd === "help" || cmd === "/help") {
-    api.showToast("⌨️ Commands: tuning (unlock tuning UI), diffuse [num]");
+    return "[TANK CODES] AVAILABLE MOD CONSOLE COMMANDS:\n- collision : Toggle physical tank world collision (starts OFF by default)\n- tuning    : Open heavy armor texture tuner panels\n- diffuse [num] : Set base shell brightness booster";
   } else if (cmd === "respawn" || cmd === "/respawn") {
     handleRespawn();
-  } else if (cmd === "" || cmd === undefined) {
-    // skip empty
-  } else {
-    api.showToast("❌ Unknown command. Type 'tuning' to unlock sliders.");
+    return "[TANK ACTION] RE-SPAWNED COMBAT VEHICLE POSITION.";
   }
-}
+  return false;
+};
 
 // Bind pointer-locked keyboard hotkeys
 api.onKeyDown((key) => {
@@ -1755,7 +1873,6 @@ api.onKeyDown((key) => {
       if (document.exitPointerLock) {
         document.exitPointerLock();
       }
-      api.showToast("🛠️ 材质调试面板已开启！已自动释放鼠标，可拖动左滑块调试。");
     }
   }
   if (!isDriving) {
@@ -1780,7 +1897,6 @@ const onMouseDown = (e) => {
       triggerFireAttempt();
     } else if (e.button === 2) {
       isAimingView = !isAimingView;
-      api.showToast(isAimingView ? "🔍 FCS 瞄准开火视角 (FPP)" : "🎥 战术驾驶视角 (TPP)");
     }
   }
 };
@@ -1792,7 +1908,178 @@ const onContextMenu = (e) => {
 dom.addEventListener('mousedown', onMouseDown);
 dom.addEventListener('contextmenu', onContextMenu);
 
+function checkCollisionAtPoint(x, z) {
+  const map = api.getMapGrid();
+  if (!map) return false;
+  const GRID_SPACING = api.getGridSpacing();
+  
+  const c = Math.floor(x / GRID_SPACING);
+  const r = Math.floor(z / GRID_SPACING);
+  
+  if (r < 0 || r >= map.height || c < 0 || c >= map.width) {
+    return true; // boundaries of the map
+  }
+  
+  const cell = map.grid[r][c];
+  if (cell === 1 || cell === 2 || cell === 3 || cell === 4) {
+    const cx = (c + 0.5) * GRID_SPACING;
+    const cz = (r + 0.5) * GRID_SPACING;
+    
+    let minX = c * GRID_SPACING;
+    let maxX = (c + 1) * GRID_SPACING;
+    let minZ = r * GRID_SPACING;
+    let maxZ = (r + 1) * GRID_SPACING;
+    
+    if (cell === 2) {
+      const columnScale = 0.45;
+      minX = cx - (GRID_SPACING * columnScale) / 2;
+      maxX = cx + (GRID_SPACING * columnScale) / 2;
+      minZ = cz - (GRID_SPACING * columnScale) / 2;
+      maxZ = cz + (GRID_SPACING * columnScale) / 2;
+    } else if (cell === 3) {
+      const columnScale = 0.55;
+      minX = cx - (GRID_SPACING * columnScale) / 2;
+      maxX = cx + (GRID_SPACING * columnScale) / 2;
+      minZ = cz - (GRID_SPACING * columnScale) / 2;
+      maxZ = cz + (GRID_SPACING * columnScale) / 2;
+    } else if (cell === 4) {
+      const isOrientX = (r + c) % 2 === 0;
+      if (isOrientX) {
+        minX = c * GRID_SPACING;
+        maxX = (c + 1) * GRID_SPACING;
+        minZ = cz - (GRID_SPACING * 0.18) / 2;
+        maxZ = cz + (GRID_SPACING * 0.18) / 2;
+      } else {
+        minX = cx - (GRID_SPACING * 0.18) / 2;
+        maxX = cx + (GRID_SPACING * 0.18) / 2;
+        minZ = r * GRID_SPACING;
+        maxZ = (r + 1) * GRID_SPACING;
+      }
+    }
+    
+    const margin = 0.05;
+    if (x >= minX - margin && x <= maxX + margin && z >= minZ - margin && z <= maxZ + margin) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function checkTankWallCollision(x, z, rotY) {
+  if (!isCollisionEnabled) return false;
+  const scaleVal = autoScaleValue * currentScaleFactor;
+  const halfW = collisionHalfWCoeff * scaleVal;
+  const halfL = collisionHalfLCoeff * scaleVal;
+  
+  const samples = [];
+  samples.push({ lx: 0, lz: 0 }); // center point
+  
+  // Front & rear borders sampled every 0.5m for high-precision wall collision
+  const stepW = 0.5;
+  for (let lx = -halfW; lx <= halfW; lx += stepW) {
+    samples.push({ lx: lx, lz: halfL });
+    samples.push({ lx: lx, lz: -halfL });
+  }
+  // Explicitly push endpoints
+  samples.push({ lx: halfW, lz: halfL });
+  samples.push({ lx: -halfW, lz: halfL });
+  samples.push({ lx: halfW, lz: -halfL });
+  samples.push({ lx: -halfW, lz: -halfL });
+  
+  // Left & right borders sampled every 0.6m
+  const stepL = 0.6;
+  for (let lz = -halfL; lz <= halfL; lz += stepL) {
+    samples.push({ lx: halfW, lz: lz });
+    samples.push({ lx: -halfW, lz: lz });
+  }
+  
+  const cosR = Math.cos(rotY);
+  const sinR = Math.sin(rotY);
+  
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i];
+    // Correct local to world transformation:
+    // worldX = lx * cos(rot) + lz * sin(rot)
+    // worldZ = -lx * sin(rot) + lz * cos(rot)
+    const wx = x + (s.lx * cosR + s.lz * sinR);
+    const wz = z + (-s.lx * sinR + s.lz * cosR);
+    if (checkCollisionAtPoint(wx, wz)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function updateDebugHelpers() {
+  if (!showDebugBoxes || isDriving) {
+    if (collisionBoxHelper) {
+      scene.remove(collisionBoxHelper);
+      collisionBoxHelper = null;
+    }
+    if (interactBoxHelper) {
+      scene.remove(interactBoxHelper);
+      interactBoxHelper = null;
+    }
+    return;
+  }
+
+  const scaleVal = autoScaleValue * currentScaleFactor;
+
+  // Collision Box (Red Wireframe)
+  if (!collisionBoxHelper) {
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff3333,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false
+    });
+    collisionBoxHelper = new THREE.Mesh(geo, mat);
+    scene.add(collisionBoxHelper);
+    api._spawnedMeshes.push(collisionBoxHelper);
+  }
+  
+  // Interaction Box (Green Wireframe)
+  if (!interactBoxHelper) {
+    const geo = new THREE.BoxGeometry(1, 1, 1);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x33ff33,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.8,
+      depthWrite: false
+    });
+    interactBoxHelper = new THREE.Mesh(geo, mat);
+    scene.add(interactBoxHelper);
+    api._spawnedMeshes.push(interactBoxHelper);
+  }
+
+  // Position and Scale Collision Box Helper
+  const collW = 2 * collisionHalfWCoeff * scaleVal;
+  const collL = 2 * collisionHalfLCoeff * scaleVal;
+  const collH = 1.2 * scaleVal;
+  
+  collisionBoxHelper.scale.set(collW, collH, collL);
+  collisionBoxHelper.position.copy(tankPos);
+  collisionBoxHelper.position.y = 0.02 + collH / 2;
+  collisionBoxHelper.rotation.y = tankRotationY;
+
+  // Position and Scale Interaction Box Helper
+  const intW = 2 * interactHalfWCoeff * scaleVal;
+  const intL = 2 * interactHalfLCoeff * scaleVal;
+  const intH = 1.3 * scaleVal;
+
+  interactBoxHelper.scale.set(intW, intH, intL);
+  interactBoxHelper.position.copy(tankPos);
+  interactBoxHelper.position.y = 0.02 + intH / 2;
+  interactBoxHelper.rotation.y = tankRotationY;
+}
+
+let lastHtml = "";
+
 api.onTick((dt, ts) => {
+  updateDebugHelpers();
   const keys = api.getKeys();
   
   // Bugfix: ensure tank starts at the correct spawn position of the player inside the maze asynchronously
@@ -1818,7 +2105,6 @@ api.onTick((dt, ts) => {
     const nextR = Math.max(0, reloadTimer - dt);
     if (nextR === 0 && reloadTimer > 0) {
       playReloadBeep();
-      api.showToast("🔒 Fire Control Unlocked! 120mm Shell LOADED. Ready to FIRE!");
     }
     reloadTimer = nextR;
   }
@@ -1935,14 +2221,18 @@ api.onTick((dt, ts) => {
   let hudY = 50;
   
   if (isDriving) {
-    // 1. CHASSIS STEERING & ROTATION
+    // 1. CHASSIS STEERING & ROTATION (checking wall collision to prevent steering into walls)
     let turnInput = 0;
     if (keys['KeyA'] || keys['ArrowLeft']) turnInput = 1.0; // Left is positive counter-clockwise rotation
     if (keys['KeyD'] || keys['ArrowRight']) turnInput = -1.0; // Right is negative clockwise rotation
     
-    // Rotate tank heading
+    // Rotate tank heading (safety checked)
     const turnRate = 1.4; // rad/sec
+    const prevRotationY = tankRotationY;
     tankRotationY += turnInput * turnRate * dt;
+    if (checkTankWallCollision(tankPos.x, tankPos.z, tankRotationY)) {
+      tankRotationY = prevRotationY;
+    }
     tankGroup.rotation.y = tankRotationY;
     
     // 2. FORWARD / BACKWARD ACCELERATION
@@ -1969,11 +2259,8 @@ api.onTick((dt, ts) => {
     const targetX = tankPos.x + moveX;
     const targetZ = tankPos.z + moveZ;
     
-    // Standard modular collision slide prevent bounds
-    let collisionDetected = false;
-    if (typeof api.checkCollision === "function") {
-       collisionDetected = api.checkCollision(targetX, targetZ);
-    }
+    // Check if the entire tank bounds collide with walls
+    const collisionDetected = checkTankWallCollision(targetX, targetZ, tankRotationY);
     
     if (!collisionDetected) {
        tankPos.set(targetX, 0.02, targetZ);
@@ -2207,18 +2494,49 @@ api.onTick((dt, ts) => {
     
     if (aimDotMesh) aimDotMesh.visible = false;
     
-    // Push away player from tank boundaries (Collision Box simulation!)
+    // Push away player from tank boundaries (Collision Box simulation matching visual bounds)
     const playerPos = api.getPlayerPos();
-    const distToTank = Math.hypot(playerPos.x - tankPos.x, playerPos.z - tankPos.z);
-    const PUSH_THRESHOLD = 0.3 * currentScaleFactor; // Keep player from walking through scaled tank body
-    if (distToTank < PUSH_THRESHOLD) {
-      const dX = playerPos.x - tankPos.x;
-      const dZ = playerPos.z - tankPos.z;
-      const angle = Math.atan2(dZ, dX) || 0;
-      const pushX = tankPos.x + Math.cos(angle) * PUSH_THRESHOLD;
-      const pushZ = tankPos.z + Math.sin(angle) * PUSH_THRESHOLD;
-      api.setPlayerPos(pushX, playerPos.y, pushZ);
-      api.showToast("🛑 Collided with Abrams physical hull! Press [F] to Drive.");
+    const dx = playerPos.x - tankPos.x;
+    const dz = playerPos.z - tankPos.z;
+    const scaleVal = autoScaleValue * currentScaleFactor;
+    
+    // Rotate player relative position into tank's local coordinate system
+    const theta = tankRotationY;
+    const cosT = Math.cos(theta);
+    const sinT = Math.sin(theta);
+    // Correct world to local conversion:
+    const localX = dx * cosT - dz * sinT;
+    const localZ = dx * sinT + dz * cosT;
+    
+    // Real hull boundaries scaled with visual tank model dimensions plus player-radius padding
+    // Note: The player has a capsule collision radius of 0.45m in BackroomViewer, so using 0.45m matches perfectly.
+    const playerRadiusBuffer = 0.45;
+    const halfW = collisionHalfWCoeff * scaleVal + playerRadiusBuffer;
+    const halfL = collisionHalfLCoeff * scaleVal + playerRadiusBuffer;
+    
+    // Is the player inside the outer bounds of the tank?
+    if (isCollisionEnabled && Math.abs(localX) < halfW && Math.abs(localZ) < halfL) {
+      // Colliding with solid tracks, armor skirts or gun mantle! Push them back to the closest outer wall
+      const overlapX = halfW - Math.abs(localX);
+      const overlapZ = halfL - Math.abs(localZ);
+      
+      let pushLocalX = localX;
+      let pushLocalZ = localZ;
+      
+      if (overlapX < overlapZ) {
+        // Push to the nearest left/right side
+        pushLocalX = Math.sign(localX) * halfW;
+      } else {
+        // Push to the nearest front/back side
+        pushLocalZ = Math.sign(localZ) * halfL;
+      }
+      
+      // Transform local pushed coordinates back to world space using correct forward conversion
+      const pushWorldX = tankPos.x + (pushLocalX * cosT + pushLocalZ * sinT);
+      const pushWorldZ = tankPos.z + (-pushLocalX * sinT + pushLocalZ * cosT);
+      
+      api.setPlayerPos(pushWorldX, playerPos.y, pushWorldZ);
+      // Removed collision toast alert as requested
     }
   }
 
@@ -2241,8 +2559,23 @@ api.onTick((dt, ts) => {
     }
   }
 
+  // Calculate interactive area proximity
+  const currentPosVal = api.getPlayerPos();
+  const dxVal = currentPosVal.x - tankPos.x;
+  const dzVal = currentPosVal.z - tankPos.z;
+  const thetaVal = tankRotationY;
+  const cosTVal = Math.cos(thetaVal);
+  const sinTVal = Math.sin(thetaVal);
+  // Correct world to local conversion:
+  const localXVal = dxVal * cosTVal - dzVal * sinTVal;
+  const localZVal = dxVal * sinTVal + dzVal * cosTVal;
+  
+  const interactWVal = interactHalfWCoeff * (autoScaleValue * currentScaleFactor);
+  const interactLVal = interactHalfLCoeff * (autoScaleValue * currentScaleFactor);
+  const isInsideInteractBox = (Math.abs(localXVal) <= interactWVal && Math.abs(localZVal) <= interactLVal);
+
   // Render tactical cockpit status display overlay
-  api.customUI(`
+  const abramsHudHtml = `
     <style>
       @keyframes softglow {
         0% { border-color: rgba(0, 255, 102, 0.4); box-shadow: 0 0 6px rgba(0, 255, 102, 0.2); }
@@ -2296,6 +2629,8 @@ api.onTick((dt, ts) => {
     </div>
     ` : ''}
 
+    <!-- M1ABRAMS CONTROL PANEL - HIDDEN BY DEFAULT AS REQUESTED -->
+    ${false ? `
     <div style="position: absolute; top: 110px; right: 24px; background: rgba(9, 9, 11, 0.95); border: 2px solid #5a6d3c; border-radius: 16px; padding: 14px; color: #f4f4f5; font-family: monospace; font-size: 11px; width: 310px; pointer-events: none; box-shadow: 0 0 15px rgba(90,109,60,0.5); z-index: 100;">
       <div style="font-weight: bold; border-bottom: 2px solid #5a6d3c; padding-bottom: 6px; margin-bottom: 10px; text-align: center; color: #a1b876; letter-spacing: 0.1em; font-size: 11.5px;">⭐ M1 ABRAMS CONTROL PANEL</div>
       
@@ -2341,7 +2676,7 @@ api.onTick((dt, ts) => {
           <div style="display: flex; justify-content: space-between; font-size: 10px;">
             <span style="color: #abb2bf;">RELOAD STATUS:</span>
             <span style="color: ${reloadTimer > 0 ? '#ef596f' : '#98c379'}; font-weight: bold;">
-              ${reloadTimer > 0 ? '🚀 RELOADING (' + reloadTimer.toFixed(1) + 's)' : '🟢 LOADED (READY)'}
+              ${reloadTimer > 0 ? 'RELOADING (' + reloadTimer.toFixed(1) + 's)' : 'LOADED (READY)'}
             </span>
           </div>
           ${reloadTimer > 0 ? '<div style="width: 100%; height: 4px; background: #27272a; border-radius: 2px; margin-top: 4px; overflow: hidden;"><div style="width: ' + ((5.0 - reloadTimer) / 5.0 * 100).toFixed(1) + '%; height: 100%; background: #ef596f; transition: width 0.1s linear;"></div></div>' : ''}
@@ -2349,7 +2684,7 @@ api.onTick((dt, ts) => {
         ` : ''}
       </div>
 
-      <div style="font-weight: bold; margin-bottom: 6px; color: #a1b876; text-align: center;">🎮 CONTROL SYSTEM SCHEME</div>
+      <div style="font-weight: bold; margin-bottom: 6px; color: #a1b876; text-align: center;">CONTROL SYSTEM SCHEME</div>
       <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; border: 1px solid #27272a;">
         <div style="display: flex; justify-content: space-between; font-size: 10px;">
           <span style="color: #56b6c2; font-weight: bold;">[ F ] KEY</span>
@@ -2392,19 +2727,36 @@ api.onTick((dt, ts) => {
         ${isDriving ? 'Move mouse to rotate turret and look around.' : 'Approach tank within 4.5m and press [F] to Drive!'}
       </div>
     </div>
+    ` : ''}
 
-    <!-- Live Material Tuning Panel - HIDDEN BY DEFAULT, ACCESSIBLE ONLY VIA THE UNLOCKED CHEAT CODE/COMMAND -->
+    <!-- Clean, direct instructions rendered at the bottom center of the screen with no boxed backgrounds -->
+    ${(isDriving || isInsideInteractBox) ? `
+    <div style="position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%); font-family: system-ui, -apple-system, sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; text-shadow: 0 0 4px #000000, 0 1.5px 4px rgba(0,0,0,0.95), 0 0 10px rgba(161,184,118,0.7); pointer-events: none; text-align: center; z-index: 10000; letter-spacing: 0.08em; white-space: nowrap;">
+      ${isDriving ? `
+        [W/S/A/D] 驾驶 &nbsp;&nbsp;|&nbsp;&nbsp; [LMB] 开火 &nbsp;&nbsp;|&nbsp;&nbsp; [RMB] 切换视角 &nbsp;&nbsp;|&nbsp;&nbsp; [F] 下车
+      ` : `
+        按 [F] 驾驶
+      `}
+    </div>
+    ` : ''}
+
+    <!-- Live Material & Bounds Tuning Panel - ACCESSIBLE VIA [P] KEY -->
     ${showTuningPanel && isTuningUnlocked ? `
-    <div style="position: absolute; top: 110px; left: 24px; background: rgba(9, 9, 11, 0.95); border: 2px solid #a1b876; border-radius: 16px; padding: 16px; color: #f4f4f5; font-family: monospace; font-size: 11px; width: 320px; pointer-events: auto; box-shadow: 0 0 25px rgba(161,184,118,0.4); z-index: 101;">
+    <div style="position: absolute; top: 110px; left: 24px; background: rgba(9, 9, 11, 0.95); border: 2px solid #a1b876; border-radius: 16px; padding: 16px; color: #f4f4f5; font-family: monospace; font-size: 11px; width: 340px; max-height: 80vh; overflow-y: auto; pointer-events: auto; box-shadow: 0 0 25px rgba(161,184,118,0.4); z-index: 101;">
       <div style="font-weight: bold; border-bottom: 2px solid #a1b876; padding-bottom: 8px; margin-bottom: 12px; text-align: center; color: #a1b876; letter-spacing: 0.1em; font-size: 12px;">
-        ⚙️ REAL-TIME MATERIAL TUNER
+        REAL-TIME PARAMETER TUNER
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 14px;">
+        <!-- SECTION 1: MATERIAL GRAPHICS -->
+        <div style="font-weight: bold; color: #61afef; border-bottom: 1px dashed rgba(255,255,255,0.15); padding-bottom: 4px; margin-bottom: 4px;">
+          🎨 VISUAL MATERIAL OPTIONS
+        </div>
+
         <!-- Diffuse / Color Brightness -->
         <div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="color: #abb2bf; font-weight: bold;">🎨 DIFFUSE BOOSTER</span>
+            <span style="color: #abb2bf; font-weight: bold;">DIFFUSE BOOSTER</span>
             <span style="color: #98c379; font-weight: bold;" id="val-diffuse">${tankDiffuseBoost.toFixed(2)}</span>
           </div>
           <input id="slider-diffuse" type="range" min="1.0" max="10.0" step="0.2" value="${tankDiffuseBoost}" style="width: 100%; cursor: pointer; accent-color: #98c379;" oninput="window.setAbramsDiffuse(parseFloat(this.value))" />
@@ -2418,7 +2770,7 @@ api.onTick((dt, ts) => {
         <!-- Emissive Glowing -->
         <div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="color: #abb2bf; font-weight: bold;">💡 EMISSIVE ILLUMINATION</span>
+            <span style="color: #abb2bf; font-weight: bold;">EMISSIVE ILLUMINATION</span>
             <span style="color: #61afef; font-weight: bold;" id="val-emissive">${tankEmissiveBoost.toFixed(2)}</span>
           </div>
           <input id="slider-emissive" type="range" min="0.0" max="1.0" step="0.02" value="${tankEmissiveBoost}" style="width: 100%; cursor: pointer; accent-color: #61afef;" oninput="window.setAbramsEmissive(parseFloat(this.value))" />
@@ -2432,7 +2784,7 @@ api.onTick((dt, ts) => {
         <!-- Roughness -->
         <div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="color: #abb2bf; font-weight: bold;">💎 SURFACE ROUGHNESS</span>
+            <span style="color: #abb2bf; font-weight: bold;">SURFACE ROUGHNESS</span>
             <span style="color: #e5c07b; font-weight: bold;" id="val-roughness">${tankRoughness.toFixed(2)}</span>
           </div>
           <input id="slider-roughness" type="range" min="0.0" max="1.0" step="0.02" value="${tankRoughness}" style="width: 100%; cursor: pointer; accent-color: #e5c07b;" oninput="window.setAbramsRoughness(parseFloat(this.value))" />
@@ -2446,7 +2798,7 @@ api.onTick((dt, ts) => {
         <!-- Metalness -->
         <div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-            <span style="color: #abb2bf; font-weight: bold;">⚙️ MATERIAL METALNESS</span>
+            <span style="color: #abb2bf; font-weight: bold;">MATERIAL METALNESS</span>
             <span style="color: #ef596f; font-weight: bold;" id="val-metalness">${tankMetalness.toFixed(2)}</span>
           </div>
           <input id="slider-metalness" type="range" min="0.0" max="1.0" step="0.02" value="${tankMetalness}" style="width: 100%; cursor: pointer; accent-color: #ef596f;" oninput="window.setAbramsMetalness(parseFloat(this.value))" />
@@ -2456,11 +2808,83 @@ api.onTick((dt, ts) => {
             <span>Solid Steel (1.00)</span>
           </div>
         </div>
+
+        <!-- SECTION 2: PHYSICAL BOUNDS & MOUNT DETECTOR -->
+        <div style="font-weight: bold; color: #e5c07b; border-top: 1px solid #3f3f46; border-bottom: 1px dashed rgba(255,255,255,0.15); padding: 8px 0 4px 0; margin-top: 8px;">
+          📐 PHYSICAL BOUNDS & MOUNTING (BOX CUBOID)
+        </div>
+
+        <!-- Checkbox: Show Debug Outlines -->
+        <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 6px; border-radius: 6px;">
+          <input type="checkbox" id="check-debug-boxes" ${showDebugBoxes ? 'checked' : ''} onchange="window.toggleDebugBoxes(this.checked)" style="cursor: pointer; accent-color: #a1b876;" />
+          <label for="check-debug-boxes" style="color: #abb2bf; font-weight: bold; cursor: pointer; font-size: 10px;">显示 3D 物理辅助线框 (Show 3D Outlines)</label>
+        </div>
+
+        <div style="font-size: 9px; color: #abb2bf; border-radius: 4px; padding: 4px; background: rgba(0,0,0,0.2); line-height: 1.35;">
+          <span style="color:#ff3333; font-weight: bold;">■ 红色：碰撞箱范围</span> - 挡住玩家的外壁<br/>
+          <span style="color:#33ff33; font-weight: bold;">■ 绿色：交互乘车区</span> - 玩家可按 [F] 键驾驶
+        </div>
+
+        <!-- Collision Width Slider -->
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #ff8888; font-weight: bold;">碰撞宽度 (Coll. Half-Width)</span>
+            <span style="color: #ff6666; font-weight: bold;" id="val-collision-w">${collisionHalfWCoeff.toFixed(2)}</span>
+          </div>
+          <input id="slider-collision-w" type="range" min="0.1" max="3.0" step="0.05" value="${collisionHalfWCoeff}" style="width: 100%; cursor: pointer; accent-color: #ef596f;" oninput="window.setCollisionHalfW(parseFloat(this.value))" />
+          <div style="display: flex; justify-content: space-between; font-size: 8px; color: #6b7280;">
+            <span>Narrow (0.10)</span>
+            <span>Preset: 0.95</span>
+            <span>Wide (3.00)</span>
+          </div>
+        </div>
+
+        <!-- Collision Length Slider -->
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #ff8888; font-weight: bold;">碰撞长度 (Coll. Half-Length)</span>
+            <span style="color: #ff6666; font-weight: bold;" id="val-collision-l">${collisionHalfLCoeff.toFixed(2)}</span>
+          </div>
+          <input id="slider-collision-l" type="range" min="0.1" max="4.0" step="0.05" value="${collisionHalfLCoeff}" style="width: 100%; cursor: pointer; accent-color: #ef596f;" oninput="window.setCollisionHalfL(parseFloat(this.value))" />
+          <div style="display: flex; justify-content: space-between; font-size: 8px; color: #6b7280;">
+            <span>Short (0.10)</span>
+            <span>Preset: 1.45</span>
+            <span>Long (4.00)</span>
+          </div>
+        </div>
+
+        <!-- Interaction Width Slider -->
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #88ff88; font-weight: bold;">交互宽度 (Interact Half-Width)</span>
+            <span style="color: #98c379; font-weight: bold;" id="val-interact-w">${interactHalfWCoeff.toFixed(2)}</span>
+          </div>
+          <input id="slider-interact-w" type="range" min="0.2" max="5.0" step="0.1" value="${interactHalfWCoeff}" style="width: 100%; cursor: pointer; accent-color: #98c379;" oninput="window.setInteractHalfW(parseFloat(this.value))" />
+          <div style="display: flex; justify-content: space-between; font-size: 8px; color: #6b7280;">
+            <span>Tight (0.20)</span>
+            <span>Default: 2.00</span>
+            <span>Spacious (5.00)</span>
+          </div>
+        </div>
+
+        <!-- Interaction Length Slider -->
+        <div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+            <span style="color: #88ff88; font-weight: bold;">交互长度 (Interact Half-Length)</span>
+            <span style="color: #98c379; font-weight: bold;" id="val-interact-l">${interactHalfLCoeff.toFixed(2)}</span>
+          </div>
+          <input id="slider-interact-l" type="range" min="0.2" max="6.0" step="0.1" value="${interactHalfLCoeff}" style="width: 100%; cursor: pointer; accent-color: #98c379;" oninput="window.setInteractHalfL(parseFloat(this.value))" />
+          <div style="display: flex; justify-content: space-between; font-size: 8px; color: #6b7280;">
+            <span>Tight (0.20)</span>
+            <span>Default: 2.50</span>
+            <span>Spacious (6.00)</span>
+          </div>
+        </div>
       </div>
 
       <div style="margin-top: 18px; display: flex; gap: 8px;">
         <button onclick="window.resetAbramsMaterials()" style="flex: 1; padding: 7px; background: rgba(161,184,118,0.15); border: 1px solid #a1b876; border-radius: 6px; color: #a1b876; font-size: 10px; cursor: pointer; font-family: monospace; font-weight: bold;" onmouseover="this.style.background='rgba(161,184,118,0.3)'" onmouseout="this.style.background='rgba(161,184,118,0.15)'">
-          ↩️ RESET DEFAULT
+          RESET ALL DEFAULTS
         </button>
         <button onclick="window.closeAbramsTuning()" style="padding: 7px 12px; background: #3f3f46; border: none; border-radius: 6px; color: #ffffff; font-size: 10px; cursor: pointer; font-family: monospace; font-weight: bold;" onmouseover="this.style.background='#52525b'" onmouseout="this.style.background='#3f3f46'">
           CLOSE [P]
@@ -2472,7 +2896,12 @@ api.onTick((dt, ts) => {
       </div>
     </div>
     ` : ''}
-  `);
+  `;
+
+  if (abramsHudHtml !== lastHtml) {
+    api.customUI(abramsHudHtml);
+    lastHtml = abramsHudHtml;
+  }
 });
 
 api.onDispose(() => {
@@ -2485,6 +2914,14 @@ api.onDispose(() => {
   if (aimDotMesh) {
     scene.remove(aimDotMesh);
     aimDotMesh = null;
+  }
+  if (collisionBoxHelper) {
+    scene.remove(collisionBoxHelper);
+    collisionBoxHelper = null;
+  }
+  if (interactBoxHelper) {
+    scene.remove(interactBoxHelper);
+    interactBoxHelper = null;
   }
   activeParticles.forEach((p) => {
     scene.remove(p.mesh);
