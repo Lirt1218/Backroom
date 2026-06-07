@@ -6,8 +6,10 @@ import monoblocChairCode from '../mods/monobloc_chair.js?raw';
 import youtuberModCode from '../mods/youtuber_mod.js?raw';
 import babyModeCode from '../mods/baby_mode.js?raw';
 import postersGraffitiCode from '../mods/posters_graffiti.js?raw';
+import abramsCode from '../mods/abrams.js?raw';
 
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { GameSettings, MapData } from '../types';
 import { generateBackroom, getSeededRNG } from './BackroomGenerator';
 import { TextureGenerator } from './TextureGenerator';
@@ -118,6 +120,14 @@ export const SCRIPT_PRESETS: ScriptMod[] = [
     description: 'Dynamic JavaScript injected mod: Gen procedurally placed high-fidelity peeling/torn themed posters with real tape details on walls, and triggers a physical spray-can UI. Press [L-Click] to spray custom graffiti lines, select colours with [1-5]/[C], and toggle paint mode with [Q] (No emojis)!',
     cnDescription: '动态 JavaScript 脚本：在墙面自适应计算并渲染悬挂一系列破旧、倾斜、带逼真透明胶带贴角的照片海报；提供物理摇晃喷头与机械缩回动效，按住 [鼠标左键] 向墙面喷涂具有粒子迷雾和滤音器物理声效的墙面喷漆，支持 [Q] 键切换自由喷涂与漏字板模具图案模式，支持 [1-5] 及 [C] 键换色，完全不占用 Tab 键！',
     jsCode: postersGraffitiCode
+  },
+  {
+    id: 'abrams',
+    name: 'M1 Abrams Tank Mod',
+    cnName: 'M1 艾布拉姆斯主战坦克 (V3 精修版)',
+    description: 'Control a massive low-poly M1 Abrams Main Battle Tank in beautiful War Thunder-style TPP! Swing turret with mouse, [WASD] to steer, fire with left-click or space. High-velocity tracer shells, dynamic fire, lingering smoke, entity knockback and an integrated tactical commander console with hidden material fine-tuning controls!',
+    cnDescription: '驾驶宏伟的重型 M1 艾布拉姆斯主战坦克，体验震撼的第三人称视角与越野。鼠标环绕转塔、[WASD] 作动转向与油门。[鼠标左键] 或 [空格] 怒吼开火！配置 5秒装填指示、穿墙物理高能弹震、浓密硝烟粒子与怪兽物理击退。可通过专门的战术控制台/作弊密钥指令解锁漫反射漫光等高级材质现场实时调优调参！',
+    jsCode: abramsCode
   }
 ];
 
@@ -382,6 +392,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
         const api = {
           THREE,
+          GLTFLoader,
           getScene: () => sceneRef.current,
           getCamera: () => cameraRef.current,
           getRenderer: () => rendererRef.current,
@@ -405,6 +416,12 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
           setPlayerSpeed: (mult: number) => {
             scriptPlayerSpeedMultiplierRef.current = mult;
+          },
+          setCameraOverride: (val: boolean) => {
+            if (cameraRef.current) {
+              if (!cameraRef.current.userData) cameraRef.current.userData = {};
+              cameraRef.current.userData.override = val;
+            }
           },
           setBatteryDecay: (mult: number) => {
             scriptBatteryDecayMultiplierRef.current = mult;
@@ -1685,9 +1702,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           wallMeshes.push(partition);
         }
 
-        // Place ceiling lights in grid lines. 
-        // Typically, standard backrooms has square light panels tiled at regular grid offsets.
-        // We place a larger, composite fluorescent fixture aligned perfectly in the ceiling tile every 3 units in empty areas.
+        // Place ceiling lights or glowing temporal core beacons
         if (cell === 0 && (r % 3 === 0) && (c % 3 === 0)) {
           // Align precisely with the top-left tile of the 2x2 ceiling grid inside this cell
           const lX = c * GRID_SPACING + 0.8;
@@ -1707,7 +1722,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           lightPanel.position.set(lX, CEILING_HEIGHT - 0.01, lZ); // Placed slightly below the frame for visual depth
           scene.add(lightPanel);
 
-          // Record light panel for dynamic PointLights (pooled lights center slightly lower for realistic light cast)
+          // Record light panel for dynamic PointLights
           lightPanels.push({ mesh: lightPanel, pos: new THREE.Vector3(lX, CEILING_HEIGHT - 0.4, lZ) });
         }
       }
@@ -1932,9 +1947,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     // Position of smiler component (floating eye height at 1.45m)
     smilerSprite.position.set(smilerPosRef.current.x, isBabyMode ? -9999.0 : 1.45, smilerPosRef.current.z);
 
-    // 5. Ambient & Directional Lights
+    // Ambient & Directional Lights
     // Ambient light: low sickly greenish-yellow fluorescent light cast
-    const ambientLight = new THREE.AmbientLight(0xfff9e0, 0.95); // Raised significantly for clear, bright ambient lighting
+    const ambientLight = new THREE.AmbientLight(0xfff9e0, 0.95);
     scene.add(ambientLight);
 
     // We can't put point lights at every single light fixture because WebGL can't handle it.
@@ -1942,7 +1957,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     const pointLightsPool: THREE.PointLight[] = [];
     const MAX_POINT_LIGHTS = 8;
     for (let i = 0; i < MAX_POINT_LIGHTS; i++) {
-      const pl = new THREE.PointLight(0xfffbe6, 14.0, 80.0); // Substantially increased intensity to 14.0 and range to 80.0 for a broader, brilliant direct lamp glow
+      const pl = new THREE.PointLight(0xfffbe6, 14.0, 80.0);
       scene.add(pl);
       pointLightsPool.push(pl);
     }
@@ -2254,7 +2269,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         if (keysPressed.current['KeyD'] || keysPressed.current['ArrowRight']) dX += 1;
       }
 
-      // 2. JoyStick inputs (using fresh ref coordinates to prevent React stale closure bugs)
+      // 2. JoyStick inputs
       if (movementJoystick.current.active) {
         const dx = movementJoystick.current.curX - movementJoystick.current.startX;
         const dy = movementJoystick.current.curY - movementJoystick.current.startY;
@@ -2281,36 +2296,33 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       const keyboardSprint = keysPressed.current['ShiftLeft'] || keysPressed.current['ShiftRight'];
       isSprintingRef.current = !!(keyboardSprint || mobileSprintRef.current);
 
+      // --- STANDARD 2D WALKING MOVEMENT SYSTEM with Robust Push-Out Collision Resolution ---
       // Movement Speed (m/s) with developer console multiplier and active mods multiplier
       const baseSpeed = (isSprintingRef.current ? 4.1 : 2.0) * speedMultiplierRef.current * getModPlayerSpeedMultiplier();
 
-      // Update player position with simple 2D collision slide check
+      // Update player position
       const currentPos = playerPosRef.current.clone();
       const nextPos = currentPos.clone().addScaledVector(moveDirection, baseSpeed * dt);
 
-      // Check collision and slide along walls
-      // We test x and z movements independently to support fluid sliding along walls
-      const tryMove = (testPos: THREE.Vector3) => {
-        // Find which tile coordinates the test position intersects
-        const col = Math.floor(testPos.x / GRID_SPACING);
-        const row = Math.floor(testPos.z / GRID_SPACING);
+      // Keep player inside the map grid boundary
+      const mapMaxX = map.width * GRID_SPACING;
+      const mapMaxZ = map.height * GRID_SPACING;
+      nextPos.x = Math.max(COLLISION_RADIUS + 0.05, Math.min(mapMaxX - COLLISION_RADIUS - 0.05, nextPos.x));
+      nextPos.z = Math.max(COLLISION_RADIUS + 0.05, Math.min(mapMaxZ - COLLISION_RADIUS - 0.05, nextPos.z));
 
-        // Check if index bounds are exceeded
-        if (col < 0 || col >= map.width || row < 0 || row >= map.height) return false;
-
-        // Bounding check around the radius
-        const startX = Math.floor((testPos.x - COLLISION_RADIUS) / GRID_SPACING);
-        const endX = Math.floor((testPos.x + COLLISION_RADIUS) / GRID_SPACING);
-        const startZ = Math.floor((testPos.z - COLLISION_RADIUS) / GRID_SPACING);
-        const endZ = Math.floor((testPos.z + COLLISION_RADIUS) / GRID_SPACING);
+      // Resolve collisions in a few iterations for compound corners (2 is perfect and fast)
+      const ITERATIONS = 2;
+      for (let iter = 0; iter < ITERATIONS; iter++) {
+        const startX = Math.floor((nextPos.x - COLLISION_RADIUS) / GRID_SPACING);
+        const endX = Math.floor((nextPos.x + COLLISION_RADIUS) / GRID_SPACING);
+        const startZ = Math.floor((nextPos.z - COLLISION_RADIUS) / GRID_SPACING);
+        const endZ = Math.floor((nextPos.z + COLLISION_RADIUS) / GRID_SPACING);
 
         for (let r = startZ; r <= endZ; r++) {
           for (let c = startX; c <= endX; c++) {
             if (r >= 0 && r < map.height && c >= 0 && c < map.width) {
               const cell = map.grid[r][c];
               if (cell === 1 || cell === 2 || cell === 3 || cell === 4) {
-                // Determine collision distance
-                // Check closest point within wall box bounds
                 const wallLeft = c * GRID_SPACING;
                 const wallRight = (c + 1) * GRID_SPACING;
                 const wallTop = r * GRID_SPACING;
@@ -2325,21 +2337,18 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                 let maxZ = wallBottom;
 
                 if (cell === 2) {
-                  // Square column
                   const columnScale = 0.45;
                   minX = cx - (GRID_SPACING * columnScale) / 2;
                   maxX = cx + (GRID_SPACING * columnScale) / 2;
                   minZ = cz - (GRID_SPACING * columnScale) / 2;
                   maxZ = cz + (GRID_SPACING * columnScale) / 2;
                 } else if (cell === 3) {
-                  // Cruciform Column
                   const columnScale = 0.55;
                   minX = cx - (GRID_SPACING * columnScale) / 2;
                   maxX = cx + (GRID_SPACING * columnScale) / 2;
                   minZ = cz - (GRID_SPACING * columnScale) / 2;
                   maxZ = cz + (GRID_SPACING * columnScale) / 2;
                 } else if (cell === 4) {
-                  // Thin dividing partition
                   const isOrientX = (r + c) % 2 === 0;
                   if (isOrientX) {
                     minX = wallLeft;
@@ -2354,39 +2363,44 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                   }
                 }
 
-                const closestX = Math.max(minX, Math.min(testPos.x, maxX));
-                const closestZ = Math.max(minZ, Math.min(testPos.z, maxZ));
+                // Find closest point on bounding box
+                const closestX = Math.max(minX, Math.min(nextPos.x, maxX));
+                const closestZ = Math.max(minZ, Math.min(nextPos.z, maxZ));
 
-                const distDX = testPos.x - closestX;
-                const distDZ = testPos.z - closestZ;
+                const distDX = nextPos.x - closestX;
+                const distDZ = nextPos.z - closestZ;
                 const distSq = distDX * distDX + distDZ * distDZ;
 
                 if (distSq < COLLISION_RADIUS * COLLISION_RADIUS) {
-                  return false; // Collision detected!
+                  const dist = Math.sqrt(distSq);
+                  if (dist > 0.0001) {
+                    const overlap = COLLISION_RADIUS - dist;
+                    // Push out along the normal vector from closest point on wall
+                    nextPos.x += (distDX / dist) * overlap;
+                    nextPos.z += (distDZ / dist) * overlap;
+                  } else {
+                    const pushX = nextPos.x - cx;
+                    const pushZ = nextPos.z - cz;
+                    const pushLen = Math.sqrt(pushX * pushX + pushZ * pushZ);
+                    if (pushLen > 0.0001) {
+                      nextPos.x += (pushX / pushLen) * COLLISION_RADIUS;
+                      nextPos.z += (pushZ / pushLen) * COLLISION_RADIUS;
+                    } else {
+                      nextPos.x += COLLISION_RADIUS;
+                    }
+                  }
                 }
               }
             }
           }
         }
-        return true;
-      };
-
-      // Slide X first
-      const testX = currentPos.clone();
-      testX.x = nextPos.x;
-      if (tryMove(testX)) {
-        playerPosRef.current.x = nextPos.x;
       }
 
-      // Slide Z second
-      const testZ = currentPos.clone();
-      testZ.z = nextPos.z;
-      if (tryMove(testZ)) {
-        playerPosRef.current.z = nextPos.z;
-      }
+      // Finally, set the player position safely
+      playerPosRef.current.copy(nextPos);
 
       // Update camera height and add breathing bobbing
-      let finalY = PLAYER_HEIGHT;
+      let finalY = playerPosRef.current.y;
       let bobX = 0;
       let bobRoll = 0;
 
@@ -2413,27 +2427,40 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           bobX = Math.cos(stepTimerRef.current * 0.5) * 0.004;
         }
 
-        // Add dynamic analog camera shake/drift (handheld VHS camera feeling!)
-        const scaleDrift = 1.0;
-        const driftYaw = Math.sin(gameTimeRef.current * 0.7) * 0.006 * scaleDrift;
-        const driftPitch = Math.cos(gameTimeRef.current * 0.5) * 0.004 * scaleDrift;
+        if (cameraRef.current.userData && cameraRef.current.userData.override) {
+          // Let the mod completely control cameraRef.current rotation & position
+        } else {
+          // Add dynamic analog camera shake/drift (handheld VHS camera feeling!)
+          const scaleDrift = 1.0;
+          const driftYaw = Math.sin(gameTimeRef.current * 0.7) * 0.006 * scaleDrift;
+          const driftPitch = Math.cos(gameTimeRef.current * 0.5) * 0.004 * scaleDrift;
 
-        // Apply camera rotation
-        cameraRef.current.rotation.set(
-          rotationXRef.current + driftPitch,
-          rotationYRef.current + driftYaw,
-          bobRoll
-        );
+          // Apply camera rotation
+          cameraRef.current.rotation.set(
+            rotationXRef.current + driftPitch,
+            rotationYRef.current + driftYaw,
+            bobRoll
+          );
+          
+          // Assign position including camera offset
+          cameraRef.current.position.set(
+            playerPosRef.current.x + bobX,
+            finalY,
+            playerPosRef.current.z
+          );
+        }
       } else {
-        cameraRef.current.rotation.set(rotationXRef.current, rotationYRef.current, 0);
+        if (cameraRef.current.userData && cameraRef.current.userData.override) {
+          // Let the mod completely control cameraRef.current rotation & position
+        } else {
+          cameraRef.current.rotation.set(rotationXRef.current, rotationYRef.current, 0);
+          cameraRef.current.position.set(
+            playerPosRef.current.x + bobX,
+            finalY,
+            playerPosRef.current.z
+          );
+        }
       }
-
-      // Assign position including camera offset
-      cameraRef.current.position.set(
-        playerPosRef.current.x + bobX,
-        finalY,
-        playerPosRef.current.z
-      );
 
       // (B) DYNAMIC LIGHTS POOLING
       // Calculate distances to all light fixtures, sort them, and place our 8 PointLights under the closest 8 fluorescent tiles!
@@ -2493,63 +2520,63 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       }
 
       // --- 1. STALKER (BACTERIA) PERSISTENT POSITION DIRECTOR & AI ---
-      // Proximity director: if stalker drifts too far (e.g. > 45 meters),
-      // respawn it in a hidden room closer to the player to keep the suspense high!
-      if (distToPlayer > 45.0 && !isBabyMode) {
-        const stalkerRespawn = getSafeSpawnCell(6, 10, [
-          { r: Math.floor(smilerWorldPos.z / GRID_SPACING), c: Math.floor(smilerWorldPos.x / GRID_SPACING) }
-        ]);
-        stalkerWorldPos.set(
-          stalkerRespawn.c * GRID_SPACING + GRID_SPACING / 2,
-          0.0,
-          stalkerRespawn.r * GRID_SPACING + GRID_SPACING / 2
-        );
-      }
+      const isStalkerDead = (window as any).stalkerDeadTime && Date.now() < (window as any).stalkerDeadTime;
+      const isDrivingTank = (window as any).abramsIsDriving || false;
 
-      // Crawler navigation towards player with simple corridor sliding
-      const stalkDirection = new THREE.Vector3().subVectors(playerPos3D, stalkerWorldPos);
-      stalkDirection.y = 0; // Lock vertically to floor
-      const currentDistance = stalkDirection.length();
-      stalkDirection.normalize();
-
-      // Pacing speed (Crawls slowly up to 8.5m away, stalks/chases when closer!)
-      // Speeds increased significantly as requested to match the high tension chasing behavior!
-      const stalkSpeed = (currentDistance < 8.5 ? 3.0 : 1.5) * getModMonsterSpeedMultiplier();
-
-      if (currentDistance > 0.1 && !isBabyMode) {
-        const nextStalkerPos = stalkerWorldPos.clone().addScaledVector(stalkDirection, stalkSpeed * dt);
-        
-        const currCol = Math.floor(stalkerWorldPos.x / GRID_SPACING);
-        const currRow = Math.floor(stalkerWorldPos.z / GRID_SPACING);
-        const nextCol = Math.floor(nextStalkerPos.x / GRID_SPACING);
-        const nextRow = Math.floor(nextStalkerPos.z / GRID_SPACING);
-
-        if (currentDistance < 2.4 || (nextCol >= 0 && nextCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][nextCol] === 0)) {
-          stalkerWorldPos.copy(nextStalkerPos);
-        } else {
-          // Slide on X axis
-          if (nextCol >= 0 && nextCol < map.width && currRow >= 0 && currRow < map.height && map.grid[currRow][nextCol] === 0) {
-            stalkerWorldPos.x = nextStalkerPos.x;
-          }
-          // Slide on Z axis
-          else if (currCol >= 0 && currCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][currCol] === 0) {
-            stalkerWorldPos.z = nextStalkerPos.z;
-          }
-        }
-      }
-
-      // 2D Billboard sprite micro-tremble & camera shake
-      const bobAmt = Math.sin(gameTimeRef.current * 12) * 0.02;
-      
-      // Update position coordinates list: We position the sprite at y = 0.02 + bobAmt.
-      // Since its pivot anchor is set exactly at its feet (center.y = 0.086), 
-      // the feet will rest perfectly and crawl exactly 2cm above the carpet, completely avoiding clipping!
-      if (isBabyMode) {
-        stalkerWorldPos.set(-9999.0, 0.0, -9999.0);
+      if (isStalkerDead || isBabyMode) {
+        stalkerWorldPos.set(-9999.0, -9999.0, -9999.0);
         stalkerSprite.position.set(-9999.0, -9999.0, -9999.0);
         stalkerSprite.visible = false;
       } else {
         stalkerSprite.visible = true;
+        // Proximity director: if stalker drifts too far (e.g. > 45 meters),
+        // respawn it in a hidden room closer to the player to keep the suspense high!
+        if (distToPlayer > 45.0) {
+          const stalkerRespawn = getSafeSpawnCell(6, 10, [
+            { r: Math.floor(smilerWorldPos.z / GRID_SPACING), c: Math.floor(smilerWorldPos.x / GRID_SPACING) }
+          ]);
+          stalkerWorldPos.set(
+            stalkerRespawn.c * GRID_SPACING + GRID_SPACING / 2,
+            0.0,
+            stalkerRespawn.r * GRID_SPACING + GRID_SPACING / 2
+          );
+        }
+
+        // Crawler navigation towards player with simple corridor sliding
+        const stalkDirection = new THREE.Vector3().subVectors(playerPos3D, stalkerWorldPos);
+        stalkDirection.y = 0; // Lock vertically to floor
+        const currentDistance = stalkDirection.length();
+        stalkDirection.normalize();
+
+        // Pacing speed (Crawls slowly up to 8.5m away, stalks/chases when closer!)
+        // Speeds increased significantly as requested to match the high tension chasing behavior!
+        // Stalker WILL NOT pursue player when player is inside the tank!
+        const stalkSpeed = isDrivingTank ? 0 : ((currentDistance < 8.5 ? 3.0 : 1.5) * getModMonsterSpeedMultiplier());
+
+        if (currentDistance > 0.1 && stalkSpeed > 0) {
+          const nextStalkerPos = stalkerWorldPos.clone().addScaledVector(stalkDirection, stalkSpeed * dt);
+          
+          const currCol = Math.floor(stalkerWorldPos.x / GRID_SPACING);
+          const currRow = Math.floor(stalkerWorldPos.z / GRID_SPACING);
+          const nextCol = Math.floor(nextStalkerPos.x / GRID_SPACING);
+          const nextRow = Math.floor(nextStalkerPos.z / GRID_SPACING);
+
+          if (currentDistance < 2.4 || (nextCol >= 0 && nextCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][nextCol] === 0)) {
+            stalkerWorldPos.copy(nextStalkerPos);
+          } else {
+            // Slide on X axis
+            if (nextCol >= 0 && nextCol < map.width && currRow >= 0 && currRow < map.height && map.grid[currRow][nextCol] === 0) {
+              stalkerWorldPos.x = nextStalkerPos.x;
+            }
+            // Slide on Z axis
+            else if (currCol >= 0 && currCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][currCol] === 0) {
+              stalkerWorldPos.z = nextStalkerPos.z;
+            }
+          }
+        }
+
+        // 2D Billboard sprite micro-tremble & camera shake
+        const bobAmt = Math.sin(gameTimeRef.current * 12) * 0.02;
         stalkerSprite.position.set(stalkerWorldPos.x, 0.02 + bobAmt, stalkerWorldPos.z);
       }
 
@@ -2573,84 +2600,86 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
 
       // --- 2. SMILER (笑魇) POSITION DIRECTOR & AI ---
-      // If Smiler drifts too far (> 45.0m), respawn it relatively close in a hidden room
-      if (distToSmiler > 45.0 && !isBabyMode) {
-        const smilerRespawn = getSafeSpawnCell(6, 10, [
-          { r: Math.floor(stalkerWorldPos.z / GRID_SPACING), c: Math.floor(stalkerWorldPos.x / GRID_SPACING) }
-        ]);
-        smilerWorldPos.set(
-          smilerRespawn.c * GRID_SPACING + GRID_SPACING / 2,
-          0.0,
-          smilerRespawn.r * GRID_SPACING + GRID_SPACING / 2
-        );
-      }
-
-      // Navigation towards player
-      const smilerDirection = new THREE.Vector3().subVectors(playerPos3D, smilerWorldPos);
-      smilerDirection.y = 0; // Lock vertically
-      const currentSmilerDist = smilerDirection.length();
-      smilerDirection.normalize();
-
-      // Smiler crawls forward floatily (fast when close, slow/spooky pacing when far)
-      const smilerSpeed = (currentSmilerDist < 8.5 ? 3.5 : 1.35) * getModMonsterSpeedMultiplier();
-
-      if (currentSmilerDist > 0.1 && !isBabyMode) {
-        const nextSmilerPos = smilerWorldPos.clone().addScaledVector(smilerDirection, smilerSpeed * dt);
-        
-        const currCol = Math.floor(smilerWorldPos.x / GRID_SPACING);
-        const currRow = Math.floor(smilerWorldPos.z / GRID_SPACING);
-        const nextCol = Math.floor(nextSmilerPos.x / GRID_SPACING);
-        const nextRow = Math.floor(nextSmilerPos.z / GRID_SPACING);
-
-        if (currentSmilerDist < 2.4 || (nextCol >= 0 && nextCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][nextCol] === 0)) {
-          smilerWorldPos.copy(nextSmilerPos);
-        } else {
-          // Slide on X axis
-          if (nextCol >= 0 && nextCol < map.width && currRow >= 0 && currRow < map.height && map.grid[currRow][nextCol] === 0) {
-            smilerWorldPos.x = nextSmilerPos.x;
-          }
-          // Slide on Z axis
-          else if (currCol >= 0 && currCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][currCol] === 0) {
-            smilerWorldPos.z = nextSmilerPos.z;
-          }
-        }
-      }
-
-      // Mutual separation force to ensure Stalker and Smiler never overlap or look like a single entity
-      const distBetweenMonsters = stalkerWorldPos.distanceTo(smilerWorldPos);
-      if (distBetweenMonsters < 2.5) {
-        const pushDir = new THREE.Vector3().subVectors(smilerWorldPos, stalkerWorldPos);
-        pushDir.y = 0;
-        if (pushDir.lengthSq() === 0) {
-          pushDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
-        }
-        pushDir.normalize();
-        const pushForce = (2.5 - distBetweenMonsters) * 0.5;
-
-        const nextStalkerSepPos = stalkerWorldPos.clone().addScaledVector(pushDir, -pushForce);
-        const nextSmilerSepPos = smilerWorldPos.clone().addScaledVector(pushDir, pushForce);
-
-        const stCol = Math.floor(nextStalkerSepPos.x / GRID_SPACING);
-        const stRow = Math.floor(nextStalkerSepPos.z / GRID_SPACING);
-        if (stCol >= 0 && stCol < map.width && stRow >= 0 && stRow < map.height && map.grid[stRow][stCol] === 0) {
-          stalkerWorldPos.copy(nextStalkerSepPos);
-        }
-
-        const smCol = Math.floor(nextSmilerSepPos.x / GRID_SPACING);
-        const smRow = Math.floor(nextSmilerSepPos.z / GRID_SPACING);
-        if (smCol >= 0 && smCol < map.width && smRow >= 0 && smRow < map.height && map.grid[smRow][smCol] === 0) {
-          smilerWorldPos.copy(nextSmilerSepPos);
-        }
-      }
-
-      // Floating, breathing bobbing animation in midair (no legs, floating hovering head)
-      const smilerBob = 1.35 + Math.sin(gameTimeRef.current * 1.8) * 0.04;
-      if (isBabyMode) {
-        smilerWorldPos.set(-9999.0, 0.0, -9999.0);
+      const isSmilerDead = (window as any).smilerDeadTime && Date.now() < (window as any).smilerDeadTime;
+      if (isSmilerDead || isBabyMode) {
+        smilerWorldPos.set(-9999.0, -9999.0, -9999.0);
         smilerSprite.position.set(-9999.0, -9999.0, -9999.0);
         smilerSprite.visible = false;
       } else {
         smilerSprite.visible = true;
+        // If Smiler drifts too far (> 45.0m), respawn it relatively close in a hidden room
+        if (distToSmiler > 45.0) {
+          const smilerRespawn = getSafeSpawnCell(6, 10, [
+            { r: Math.floor(stalkerWorldPos.z / GRID_SPACING), c: Math.floor(stalkerWorldPos.x / GRID_SPACING) }
+          ]);
+          smilerWorldPos.set(
+            smilerRespawn.c * GRID_SPACING + GRID_SPACING / 2,
+            0.0,
+            smilerRespawn.r * GRID_SPACING + GRID_SPACING / 2
+          );
+        }
+
+        // Navigation towards player
+        const smilerDirection = new THREE.Vector3().subVectors(playerPos3D, smilerWorldPos);
+        smilerDirection.y = 0; // Lock vertically
+        const currentSmilerDist = smilerDirection.length();
+        smilerDirection.normalize();
+
+        // Smiler crawls forward floatily (fast when close, slow/spooky pacing when far)
+        // Smiler WILL NOT pursue player when player is inside the tank!
+        const smilerSpeed = isDrivingTank ? 0 : ((currentSmilerDist < 8.5 ? 3.5 : 1.35) * getModMonsterSpeedMultiplier());
+
+        if (currentSmilerDist > 0.1 && smilerSpeed > 0) {
+          const nextSmilerPos = smilerWorldPos.clone().addScaledVector(smilerDirection, smilerSpeed * dt);
+          
+          const currCol = Math.floor(smilerWorldPos.x / GRID_SPACING);
+          const currRow = Math.floor(smilerWorldPos.z / GRID_SPACING);
+          const nextCol = Math.floor(nextSmilerPos.x / GRID_SPACING);
+          const nextRow = Math.floor(nextSmilerPos.z / GRID_SPACING);
+
+          if (currentSmilerDist < 2.4 || (nextCol >= 0 && nextCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][nextCol] === 0)) {
+            smilerWorldPos.copy(nextSmilerPos);
+          } else {
+            // Slide on X axis
+            if (nextCol >= 0 && nextCol < map.width && currRow >= 0 && currRow < map.height && map.grid[currRow][nextCol] === 0) {
+              smilerWorldPos.x = nextSmilerPos.x;
+            }
+            // Slide on Z axis
+            else if (currCol >= 0 && currCol < map.width && nextRow >= 0 && nextRow < map.height && map.grid[nextRow][currCol] === 0) {
+              smilerWorldPos.z = nextSmilerPos.z;
+            }
+          }
+        }
+
+        // Mutual separation force to ensure Stalker and Smiler never overlap or look like a single entity
+        const distBetweenMonsters = stalkerWorldPos.distanceTo(smilerWorldPos);
+        if (distBetweenMonsters < 2.5 && !isStalkerDead) { // only apply if stalker is alive too
+          const pushDir = new THREE.Vector3().subVectors(smilerWorldPos, stalkerWorldPos);
+          pushDir.y = 0;
+          if (pushDir.lengthSq() === 0) {
+            pushDir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+          }
+          pushDir.normalize();
+          const pushForce = (2.5 - distBetweenMonsters) * 0.5;
+
+          const nextStalkerSepPos = stalkerWorldPos.clone().addScaledVector(pushDir, -pushForce);
+          const nextSmilerSepPos = smilerWorldPos.clone().addScaledVector(pushDir, pushForce);
+
+          const stCol = Math.floor(nextStalkerSepPos.x / GRID_SPACING);
+          const stRow = Math.floor(nextStalkerSepPos.z / GRID_SPACING);
+          if (stCol >= 0 && stCol < map.width && stRow >= 0 && stRow < map.height && map.grid[stRow][stCol] === 0) {
+            stalkerWorldPos.copy(nextStalkerSepPos);
+          }
+
+          const smCol = Math.floor(nextSmilerSepPos.x / GRID_SPACING);
+          const smRow = Math.floor(nextSmilerSepPos.z / GRID_SPACING);
+          if (smCol >= 0 && smCol < map.width && smRow >= 0 && smRow < map.height && map.grid[smRow][smCol] === 0) {
+            smilerWorldPos.copy(nextSmilerSepPos);
+          }
+        }
+
+        // Floating, breathing bobbing animation in midair (no legs, floating hovering head)
+        const smilerBob = 1.35 + Math.sin(gameTimeRef.current * 1.8) * 0.04;
         smilerSprite.position.set(smilerWorldPos.x, smilerBob, smilerWorldPos.z);
       }
 
@@ -2812,7 +2841,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       const minDistanceToMonster = Math.min(distToPlayer, distToSmiler);
 
       // Trigger Signal Lost (no visual, only loud electrical noise & fuzzy static) upon touch/collision
-      if (!isSimulationPaused && minDistanceToMonster < 1.65 && !isSignalLostRef.current && !isGodModeRef.current) {
+      if (!isSimulationPaused && minDistanceToMonster < 1.65 && !isSignalLostRef.current && !isGodModeRef.current && !isDrivingTank) {
         triggerSignalLost(true);
       }
 

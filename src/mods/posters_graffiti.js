@@ -300,7 +300,29 @@ const createProceduralPoster = (idx) => {
 };
 
 // Generate 6 fully local procedural poster textures
-const textures = [0, 1, 2, 3, 4, 5].map(idx => createProceduralPoster(idx));
+const r2PosterUrls = [
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/intersteller.webp',
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/lain.webp',
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/lain2.webp',
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/matrix.webp',
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/oshinoko.webp',
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/thegodfather.webp',
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/thetruemanshow.webp',
+  'https://pub-0f73cb2dd4024638ac4ca6cb28a466d5.r2.dev/venom.webp'
+];
+
+const texLoader = new THREE.TextureLoader();
+texLoader.setCrossOrigin('anonymous');
+
+const textures = [
+  ...[0, 1, 2, 3, 4, 5].map(idx => createProceduralPoster(idx)),
+  ...r2PosterUrls.map(url => {
+    const tex = texLoader.load(url);
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    return tex;
+  })
+];
 
 // Soft tape texture helper
 const makeTapeTexture = () => {
