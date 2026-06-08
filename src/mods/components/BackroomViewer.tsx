@@ -1,16 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import discoCode from '../mods/disco.js?raw';
-import teleporterCode from '../mods/teleporter.js?raw';
-import stungunCode from '../mods/stungun.js?raw';
-import monoblocChairCode from '../mods/monobloc_chair.js?raw';
-import youtuberModCode from '../mods/youtuber_mod.js?raw';
-import babyModeCode from '../mods/baby_mode.js?raw';
-import postersGraffitiCode from '../mods/posters_graffiti.js?raw';
-import abramsCode from '../mods/abrams.js?raw';
+import discoCode from '../disco.js?raw';
+import teleporterCode from '../teleporter.js?raw';
+import stungunCode from '../stungun.js?raw';
+import monoblocChairCode from '../monobloc_chair.js?raw';
+import youtuberModCode from '../youtuber_mod.js?raw';
+import babyModeCode from '../baby_mode.js?raw';
+import postersGraffitiCode from '../posters_graffiti.js?raw';
+import abramsCode from '../abrams.js?raw';
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { GameSettings, MapData } from '../types';
+import { GameSettings, MapData } from '../../types';
 import { generateBackroom, getSeededRNG } from './BackroomGenerator';
 import { TextureGenerator } from './TextureGenerator';
 import { AudioEngine } from './AudioEngine';
@@ -126,7 +126,7 @@ export const SCRIPT_PRESETS: ScriptMod[] = [
     name: 'M1 Abrams Tank Mod',
     cnName: 'M1 艾布拉姆斯',
     description: 'Control a massive low-poly M1 Abrams Main Battle Tank in beautiful War Thunder-style TPP! Swing turret with mouse, [WASD] to steer, fire with left-click or space. High-velocity tracer shells, dynamic fire, lingering smoke, entity knockback and an integrated tactical commander console with hidden material fine-tuning controls!',
-    cnDescription: '驾驶 M1 艾布拉姆斯主战坦克 [WASD] 作动转向与油门。[鼠标左键] 或 [空格] 开火配置 5秒,
+    cnDescription: '驾驶 M1 艾布拉姆斯主战坦克 [WASD] 作动转向与油门。[鼠标左键] 或 [空格] 开火，支持高初速曳光弹、动态火焰、持续烟雾、实体击退及战术面板。',
     jsCode: abramsCode
   }
 ];

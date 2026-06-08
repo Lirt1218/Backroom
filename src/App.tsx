@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { GameSettings } from './types';
-import { BackroomViewer } from './components/BackroomViewer';
-import { GameHUD } from './components/GameHUD';
+import { BackroomViewer } from './mods/components/BackroomViewer';
+import { GameHUD } from './mods/components/GameHUD';
 
 export default function App() {
   const [seed, setSeed] = useState<string>('seed_level_0');

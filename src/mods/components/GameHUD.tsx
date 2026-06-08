@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { GameSettings, GameState } from '../types';
+import { GameSettings, GameState } from '../../types';
 import { Camera, RefreshCw, Volume2, VolumeX, Eye, Sliders, Map, Milestone, Radio, Cpu, Smartphone } from 'lucide-react';
 
 interface GameHUDProps {

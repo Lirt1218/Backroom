@@ -1,4 +1,4 @@
-import { MapData } from '../types';
+import { MapData } from '../../types';
 
 // Seeded hash functions for deterministic generation
 export function getSeededRNG(seedStr: string): () => number {
