@@ -67,16 +67,16 @@ export interface RunningScriptInstance {
 export const SCRIPT_PRESETS: ScriptMod[] = [
   {
     id: 'disco',
-    name: 'Neon Disco Spaces',
-    cnName: '霓虹迪斯科核空间',
-    description: 'Dynamic JavaScript injected mod: Shifts wall color channels dynamically over time, increases physical speeds, and spawns rotating shiny Disco spheres near you!',
-    cnDescription: '动态 JavaScript 脚本：随时间渐变环境光影色彩与雾气深度，加快玩家行动速度，并在玩家身旁动态生成旋转耀眼的 3D 霓虹迪斯科球！',
+    name: 'Neon Spaces',
+    cnName: '霓虹核空间',
+    description: 'Made the fogs RGB and player speed+',
+    cnDescription: '加快玩家行动速度，并将环境雾颜色变成RGB',
     jsCode: discoCode
   },
   {
     id: 'teleporter',
-    name: 'Quantum Teleporter & GPS Radar',
-    cnName: '量子坐标传送仪与 GPS 雷达',
+    name: 'Quantum Teleporter & Radar',
+    cnName: '量子坐标传送仪与雷达',
     description: 'Dynamic JavaScript injected mod: Displays real-time radar distance, allows pressing [T] to blink forward 5m, or pressing [C] to warp instantly to closest Tape!',
     cnDescription: '动态 JavaScript 脚本：显示破译源与笑魇物距雷达；允许按下 [T] 键向前瞬闪 5 米，或按下 [C] 键直接锁定追踪最近的磁带并传送降落！',
     jsCode: teleporterCode
@@ -91,16 +91,16 @@ export const SCRIPT_PRESETS: ScriptMod[] = [
   },
   {
     id: 'monobloc_chair',
-    name: 'Monobloc Chair Test',
-    cnName: '测试：经典 Monobloc 塑料椅',
+    name: 'Monobloc Chair',
+    cnName: 'Monobloc 塑料椅',
     description: 'Spawns 15 high-fidelity white monobloc plastic garden chairs randomly across the Backrooms corridors to test custom 3D model support and placement accuracy.',
-    cnDescription: '在后室回廊中随机分布放置 15 把经典的白色 Monobloc 塑料庭院椅，完美测试模组脚本对于自定义精细 3D 几何体的支持度。',
+    cnDescription: '在后室回廊中随机分布放置 15 把经典的白色 Monobloc 塑料庭院椅，测试模组脚本对于自定义精细 3D 几何体的支持度。',
     jsCode: monoblocChairCode
   },
   {
     id: 'youtuber_mod',
     name: 'Youtuber Clickbait HUD',
-    cnName: 'Youtuber 封面高保真红圈',
+    cnName: 'Youtuber 封面红圈',
     description: 'Dynamic JavaScript injected mod: Highlights active Backroom entities (Stalker or Smiler) directly on your screen with a giant bright red clickbait circle and curved pointing arrow, accompanied by a suspense state sound cue!',
     cnDescription: '动态 JavaScript 脚本：在屏幕上用经典的 YouTube 封面党高亮红圈和手绘指向大红箭头，实时框选当前的后室实体 (Stalker/Smiler)，高调显眼，自带恐怖博主封面幽默效果！',
     jsCode: youtuberModCode
@@ -108,7 +108,7 @@ export const SCRIPT_PRESETS: ScriptMod[] = [
   {
     id: 'baby_mode',
     name: 'Baby Mode',
-    cnName: '婴儿模式 (无实体防吓)',
+    cnName: '婴儿模式',
     description: 'Dynamic JavaScript injected mod: Removes all terrifying entities (Stalker & Smiler) and cancels heartbeat alarms, jumpscares, and static filters for a completely safe, peaceful exploration environment.',
     cnDescription: '动态 JavaScript 脚本：完全移除场景中所有吓人的怪物实体（Stalker 追逐者与 Smiler 笑魇），取消所有的心跳爆音、屏幕故障和黑屏判定，提供 100% 纯净、温和的后室漫游度假体验！',
     jsCode: babyModeCode
@@ -116,7 +116,7 @@ export const SCRIPT_PRESETS: ScriptMod[] = [
   {
     id: 'posters_graffiti',
     name: 'Posters & Graffitis',
-    cnName: '实境海报与墙面喷漆涂鸦',
+    cnName: '海报与墙面喷涂',
     description: 'Dynamic JavaScript injected mod: Gen procedurally placed high-fidelity peeling/torn themed posters with real tape details on walls, and triggers a physical spray-can UI. Press [L-Click] to spray custom graffiti lines, select colours with [1-5]/[C], and toggle paint mode with [Q] (No emojis)!',
     cnDescription: '动态 JavaScript 脚本：在墙面自适应计算并渲染悬挂一系列破旧、倾斜、带逼真透明胶带贴角的照片海报；提供物理摇晃喷头与机械缩回动效，按住 [鼠标左键] 向墙面喷涂具有粒子迷雾和滤音器物理声效的墙面喷漆，支持 [Q] 键切换自由喷涂与漏字板模具图案模式，支持 [1-5] 及 [C] 键换色，完全不占用 Tab 键！',
     jsCode: postersGraffitiCode
@@ -124,9 +124,9 @@ export const SCRIPT_PRESETS: ScriptMod[] = [
   {
     id: 'abrams',
     name: 'M1 Abrams Tank Mod',
-    cnName: 'M1 艾布拉姆斯主战坦克 (V3 精修版)',
+    cnName: 'M1 艾布拉姆斯',
     description: 'Control a massive low-poly M1 Abrams Main Battle Tank in beautiful War Thunder-style TPP! Swing turret with mouse, [WASD] to steer, fire with left-click or space. High-velocity tracer shells, dynamic fire, lingering smoke, entity knockback and an integrated tactical commander console with hidden material fine-tuning controls!',
-    cnDescription: '驾驶宏伟的重型 M1 艾布拉姆斯主战坦克，体验震撼的第三人称视角与越野。鼠标环绕转塔、[WASD] 作动转向与油门。[鼠标左键] 或 [空格] 怒吼开火！配置 5秒装填指示、穿墙物理高能弹震、浓密硝烟粒子与怪兽物理击退。可通过专门的战术控制台/作弊密钥指令解锁漫反射漫光等高级材质现场实时调优调参！',
+    cnDescription: '驾驶 M1 艾布拉姆斯主战坦克 [WASD] 作动转向与油门。[鼠标左键] 或 [空格] 开火配置 5秒,
     jsCode: abramsCode
   }
 ];
@@ -325,7 +325,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       localStorage.setItem('backrooms_active_mods', JSON.stringify(next));
       return next;
     });
-    showToastNotification(settings.language === 'en' ? "Mod uninstalled" : "模组已物理清除");
+    showToastNotification(settings.language === 'en' ? "Mod uninstalled" : "模组清除");
   };
 
   const [scriptCustomUi, setScriptCustomUi] = useState<Record<string, string>>({});
@@ -3173,7 +3173,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                   >
                     <span className="flex items-center gap-1.5">
                       <Compass className="w-4 h-4 group-hover:rotate-45 transition-transform" />
-                      {isEn ? "Enter" : "进入游戏"}
+                      {isEn ? "Enter" : "进入"}
                     </span>
                     <span className="text-[8px] bg-yellow-500 text-zinc-950 font-black px-1.5 py-0.5 rounded leading-none">START</span>
                   </button>
@@ -3187,7 +3187,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     }`}
                   >
                     <Sliders className="w-4 h-4" />
-                    {isEn ? "Settings" : "环境设置"}
+                    {isEn ? "Settings" : "设置"}
                   </button>
 
                   <button
@@ -3199,7 +3199,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     }`}
                   >
                     <Disc className="w-4 h-4" />
-                    {isEn ? "MODS" : "拓展模组"}
+                    {isEn ? "MODS" : "模组"}
                   </button>
 
                   <button
@@ -3211,7 +3211,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     }`}
                   >
                     <Library className="w-4 h-4" />
-                    {isEn ? "Collectibles" : "珍藏归档"}
+                    {isEn ? "Collectibles" : "收藏品"}
                   </button>
 
                   <button
@@ -3223,7 +3223,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     }`}
                   >
                     <User className="w-4 h-4" />
-                    {isEn ? "Author" : "作者信息"}
+                    {isEn ? "Author" : "作者"}
                   </button>
                 </div>
 
@@ -3244,8 +3244,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                       </h3>
                       <p className="text-xs text-zinc-400 leading-relaxed font-sans">
                         {isEn 
-                          ? "Welcome to BackinSide. This camera terminal simulation reconstructs spatial matrices of Level 0. Traverse the corridor grids to find decrypted telemetry tapes, maintain battery core nodes, and evade the Smile."
-                          : "欢迎来到 BackinSide 摄像记录仪系统。本控制终端真实重现了 Level 0 壁纸迷宫的空无走廊。你将在不断改变的廊道中破译磁带，补充核芯电能，并在深邃幽暗中躲避致命笑魇的追猎。"}
+                          ? "Welcome to BackinSide. "
+                          : "欢迎来到 归界"}
                       </p>
                     </div>
 
@@ -3281,7 +3281,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                       {/* FOV */}
                       <div className="flex flex-col gap-1 bg-transparent border border-zinc-850/40 p-2.5 rounded-xl">
                         <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
-                          <span>{isEn ? "FOV View Angle" : "广角视野 (FOV)"}</span>
+                          <span>{isEn ? "FOV View Angle" : "视野 "}</span>
                           <span className="text-yellow-500 font-black">{settings.fov}°</span>
                         </div>
                         <input
@@ -3297,7 +3297,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                       {/* Mouse Sensitivity */}
                       <div className="flex flex-col gap-1 bg-transparent border border-zinc-850/40 p-2.5 rounded-xl">
                         <div className="flex justify-between text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-wider">
-                          <span>{isEn ? "Swivel Sensitivity" : "镜头转向灵敏度"}</span>
+                          <span>{isEn ? "Swivel Sensitivity" : "镜头灵敏度"}</span>
                           <span className="text-yellow-500 font-black">{settings.mouseSensitivity}</span>
                         </div>
                         <input
@@ -3320,7 +3320,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                               : 'bg-transparent border-zinc-850/40 hover:bg-zinc-850/20 text-zinc-500 hover:text-zinc-300'
                           }`}
                         >
-                          <span className="text-[11px] mb-0.5">{isEn ? "CAMERA BOBBING" : "手震防抖晃动"}</span>
+                          <span className="text-[11px] mb-0.5">{isEn ? "CAMERA BOBBING" : "镜头晃动"}</span>
                           <span className="text-[8px] bg-black/40 px-1 py-0.5 rounded leading-none mt-0.5">{settings.cameraBobbing ? (isEn ? "TRUE" : "开启") : (isEn ? "FALSE" : "关闭")}</span>
                         </button>
 
@@ -3366,9 +3366,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     <div>
                       <h3 className="text-sm font-bold text-yellow-500/90 font-sans tracking-wide uppercase mb-1 flex items-center gap-1.5">
                         <Disc className="w-4 h-4" />
-                        {isEn ? "MODULAR ADDON MANAGER" : "游戏拓展模组管理中心"}
+                        {isEn ? "MODULAR ADDON MANAGER" : "拓展模组管理"}
                       </h3>
-                      <p className="text-[10px] text-zinc-500 font-mono leading-none">{isEn ? "RUN DYNAMIC JS SCRIPTS OR UPLOAD CUSTOM APPS" : "这里是 JavaScript 动态注入系统，允许加载脚本道具、自定义实体 AI/逻辑、和独特的 HUD UI"}</p>
+                      <p className="text-[10px] text-zinc-500 font-mono leading-none">{isEn ? "RUN DYNAMIC JS SCRIPTS OR UPLOAD CUSTOM APPS" : "这里是 JavaScript 动态注入系统，允许加载脚本道具、自定义实体 AI/逻辑etc"}</p>
                     </div>
 
                     {/* MOD LIST */}
@@ -3475,15 +3475,15 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     <div>
                       <h3 className="text-sm font-bold text-yellow-500/90 font-sans tracking-wide uppercase mb-1 flex items-center gap-1.5">
                         <Library className="w-4 h-4" />
-                        {isEn ? "CASSETTE COLLECTIONS DECK" : "黄沙迷宫音频唱片珍藏架"}
+                        {isEn ? "CASSETTE COLLECTIONS DECK" : "磁带珍藏架"}
                       </h3>
-                      <p className="text-[10px] text-zinc-500 font-mono leading-none">{isEn ? "COLLECT TAPES IN THE SECTORS TO UNLOCK 3D VIEW" : "在黄色走廊各角落捡拾磁带，可放入底座播放背景音乐或进入 3D 精细拖拽检视"}</p>
+                      <p className="text-[10px] text-zinc-500 font-mono leading-none">{isEn ? "COLLECT TAPES IN THE SECTORS TO UNLOCK 3D VIEW" : "在黄各角落收集磁带，可放入底座播放背景音乐或 3D 拖拽检视"}</p>
                     </div>
 
                     {/* Collected items ratio */}
                     <div className="text-[9.5px] font-mono text-zinc-400 mt-1 flex justify-between bg-transparent border border-zinc-850/40 px-3 py-1.5 rounded-xl">
-                      <span>{isEn ? "DECRYPT STICK STATUS" : "解码磁片完成比例"}</span>
-                      <span className="text-yellow-500 font-bold">{collectedTapes.length} / 12 {isEn ? "COLLECTED" : "已收录"}</span>
+                      <span>{isEn ? "DECRYPT STICK STATUS" : "已收集磁带"}</span>
+                      <span className="text-yellow-500 font-bold">{collectedTapes.length} / 12 {isEn ? "COLLECTED" : "已收集"}</span>
                     </div>
 
                     {/* Compact Grid of Tapes */}
@@ -3530,22 +3530,22 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                     <div>
                       <h3 className="text-sm font-bold text-yellow-500/90 font-sans tracking-wide uppercase mb-1 flex items-center gap-1.5">
                         <User className="w-4 h-4" />
-                        {isEn ? "Author Information" : "关于作者与开发团队"}
+                        {isEn ? "Author Information" : "关于作者"}
                       </h3>
                       <p className="text-[10px] text-zinc-500 font-mono leading-none">
-                        {isEn ? "CUSTOMIZE THE DEVELOPER CREDENTIALS DIRECTLY" : "读取并设置当前的关卡构建者及游戏版权归属凭证"}
+                        {isEn ? "@Lirt1218 or LR1218" : "@Lirt1218 或 LR1218"}
                       </p>
                     </div>
 
                     <div className="bg-transparent border border-zinc-850/40 p-4 rounded-xl flex flex-col gap-3 font-mono text-xs">
                       <div className="flex flex-col gap-1.5">
-                        <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{isEn ? "Author Profile" : "当前作者签名"}</span>
+                        <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{isEn ? "Author Profile" : "作者签名"}</span>
                         <div className="bg-transparent border border-zinc-850/40 p-3 rounded-lg text-zinc-300">
-                          <p className="text-sm font-bold text-yellow-500">{isEn ? "Level Architect" : "关卡设计师"}: {isEn ? "Standard Developer" : "默认开发者"}</p>
+                          <p className="text-sm font-bold text-yellow-500">{isEn ? "Designer" : "游戏设计"}: {isEn ? "Standard Developer" : "Lirt1218"}</p>
                           <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
                             {isEn 
-                              ? "You can customize this text page directly in the index files or src/components/BackroomViewer.tsx to set your custom creator coordinates, team signatures, or other operational credits."
-                              : "你可以通过编辑主文件或 src/components/BackroomViewer.tsx 来自定义并填写你的创作者信息、团队代表、社交账号或者是专属的游戏版本致谢内容。"}
+                              ? "Hi, I am Lirt. Thank you for playing this game. This game is in Early Access, there might be bugs and if you have any suggestions-Please Do Contact Me:lirt12182021@outlook.com Anyways, the World is so fucked up already isn't it?"
+                              : "你好，我是洛尔。欢迎游玩这个游戏。本游戏正处于测试阶段，可能会有bug，如果你有什么建议的话，请联系我：lirt12182021“outlook.com 不管怎么说，这个世界都已经烂透了不是吗..."}
                           </p>
                         </div>
                       </div>
@@ -3553,20 +3553,20 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
                       <div className="grid grid-cols-2 gap-3.5 mt-1 border-t border-zinc-900 pt-3">
                         <div>
                           <span className="text-[10px] text-zinc-500 uppercase block mb-1">{isEn ? "Role" : "职责定位"}</span>
-                          <span className="text-zinc-300 text-xs">{isEn ? "Core Engine Developer" : "核心重构引擎设计"}</span>
+                          <span className="text-zinc-300 text-xs">{isEn ? "Core Engine Developer" : "设计"}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-zinc-500 uppercase block mb-1">{isEn ? "Current Matrix" : "运行网络"}</span>
-                          <span className="text-zinc-300 text-xs">Backroom-Level-0</span>
+                          <span className="text-[10px] text-zinc-500 uppercase block mb-1">{isEn ? "Are you okay" : "你还好吗"}</span>
+                          <span className="text-zinc-300 text-xs">Null</span>
                         </div>
                       </div>
 
                       <div className="border-t border-zinc-900 pt-3 flex flex-col gap-1.5">
-                        <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{isEn ? "Editor Guide" : "修改导引说明"}</span>
+                        <span className="text-zinc-500 text-[10px] uppercase tracking-wider">{isEn ? "Null" : "零"}</span>
                         <p className="text-zinc-400 text-[11px] leading-relaxed">
                           {isEn 
-                            ? "Look for 'src/components/BackroomViewer.tsx' inside the workspace. All game texts, labels, and mod settings can be customized securely by directly modifying the static variables or React HTML layers."
-                            : "本游戏的文本与逻辑均在工作区内完全公开。你可以通过修改 'src/components/BackroomViewer.tsx' 或者各个 mods 脚本的内容，来自定义调整游戏各项交互提示、血条属性、或者是模组UI布局。"}
+                            ? "Just    already"
+                            : "都去 吧"}
                         </p>
                       </div>
                     </div>
