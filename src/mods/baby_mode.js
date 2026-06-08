@@ -1,4 +1,5 @@
 api.showToast("Baby Mode Active! No entities inside the Backrooms.");
+api.setEntitiesEnabled(false);
 
 api.customUI(`
   <div style="

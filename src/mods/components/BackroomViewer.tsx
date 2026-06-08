@@ -7,6 +7,7 @@ import youtuberModCode from '../youtuber_mod.js?raw';
 import babyModeCode from '../baby_mode.js?raw';
 import postersGraffitiCode from '../posters_graffiti.js?raw';
 import abramsCode from '../abrams.js?raw';
+import poolcoreCode from '../poolcore.js?raw';
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -65,6 +66,14 @@ export interface RunningScriptInstance {
 }
 
 export const SCRIPT_PRESETS: ScriptMod[] = [
+  {
+    id: 'poolcore',
+    name: 'Poolcore Terrain Mod',
+    cnName: '池核及水体模组',
+    description: 'Completely replaces the original yellowish corridors with three high-fidelity, pristine tiled Poolcore environments! Includes waving transparent turquoise water, square tiled pillars, stepped ceilings, parallelogram sloped-wall corridors, and a grand vaulted cathedral-like arched colonnade spanning endlessly under the sun.',
+    cnDescription: '完全替换传统的黄色走廊，全地形生成高逼真、极其还原的白瓷砖‘池核’空间！包含阳光斑驳的平铺水面、三种标志地形拼接：错落阶梯天花板、斜面槽窗透光走廊、没入清澈水体的半圆瓷砖巨拱大厅。',
+    jsCode: poolcoreCode
+  },
   {
     id: 'disco',
     name: 'Neon Spaces',
@@ -359,6 +368,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     scriptPlayerSpeedMultiplierRef.current = 1.0;
     scriptBatteryDecayMultiplierRef.current = 1.0;
     scriptMonsterSpeedMultiplierRef.current = 1.0;
+    entitiesEnabledRef.current = true;
 
     if (sceneRef.current) {
       sceneRef.current.background = new THREE.Color('#3a3523');
@@ -373,6 +383,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
     // 2. Map and compile scripts
     const compileResults: RunningScriptInstance[] = [];
+
+    // Reset any custom terrain themes before running mod initializers
+    customThemeRef.current = null;
 
     activeModIds.forEach(modId => {
       const presetMod = SCRIPT_PRESETS.find(m => m.id === modId);
@@ -393,6 +406,10 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         const api = {
           THREE,
           GLTFLoader,
+          TextureGenerator,
+          setTerrainTheme: (theme: any) => {
+            customThemeRef.current = theme;
+          },
           getScene: () => sceneRef.current,
           getCamera: () => cameraRef.current,
           getRenderer: () => rendererRef.current,
@@ -428,6 +445,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           },
           setMonsterSpeed: (mult: number) => {
             scriptMonsterSpeedMultiplierRef.current = mult;
+          },
+          setEntitiesEnabled: (enabled: boolean) => {
+            entitiesEnabledRef.current = enabled;
           },
 
           getBattery: () => batteryLevelRef.current,
@@ -1150,9 +1170,31 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
   // Backrooms parameters
   const GRID_SPACING = 3.2; // 3.2 meters per cell
-  const CEILING_HEIGHT = 3.75; // Increased from 2.85 to make the rooms feel much taller!
   const PLAYER_HEIGHT = 1.65; // Eye height of an average person
   const COLLISION_RADIUS = 0.45;
+
+  const customThemeRef = useRef<{
+    ceilingHeight?: number;
+    fogColor?: string;
+    fogNear?: number;
+    fogFar?: number;
+    backgroundColor?: string;
+    buildWorld?: (params: {
+      THREE: any;
+      scene: THREE.Scene;
+      map: any;
+      gridSpacing: number;
+      ceilingHeight: number;
+      wallMeshes: THREE.Mesh[];
+      lightPanels: { mesh: THREE.Mesh; pos: THREE.Vector3 }[];
+      TextureGenerator: any;
+    }) => void;
+    onAnimate?: (gameTime: number) => void;
+  } | null>(null);
+
+  const getCeilingHeight = () => {
+    return customThemeRef.current?.ceilingHeight ?? 3.75;
+  };
 
   // Refs for loop controls and references
   const mapDataRef = useRef<MapData | null>(null);
@@ -1166,6 +1208,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   const scriptPlayerSpeedMultiplierRef = useRef<number>(1.0);
   const scriptMonsterSpeedMultiplierRef = useRef<number>(1.0);
   const scriptBatteryDecayMultiplierRef = useRef<number>(1.0);
+  const entitiesEnabledRef = useRef<boolean>(true);
 
   const gameTimeRef = useRef<number>(0);
   const rotationYRef = useRef<number>(0);
@@ -1177,6 +1220,47 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   const smilerPosRef = useRef<THREE.Vector3>(new THREE.Vector3());
   const stepTimerRef = useRef<number>(0);
   const isSprintingRef = useRef<boolean>(false);
+
+  // Stamina and sitting state/refs
+  const staminaRef = useRef<number>(100);
+  const isSittingRef = useRef<boolean>(false);
+  const [isSitting, setIsSitting] = useState<boolean>(false);
+  const [showSitPrompt, setShowSitPrompt] = useState<boolean>(false);
+  const sittingChairRef = useRef<THREE.Group | null>(null);
+
+  const handleSittingToggle = () => {
+    if (isSittingRef.current) {
+      // Stand up!
+      isSittingRef.current = false;
+      setIsSitting(false);
+      
+      // Push slightly forward based on direction facing so they stand in front of the chair
+      const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationYRef.current);
+      playerPosRef.current.addScaledVector(forward, 0.4);
+      sittingChairRef.current = null;
+    } else {
+      // Find nearest chair to sit on
+      let nearestChair: any = null;
+      let minChairDist = 999;
+      if ((window as any).backroomsChairs && (window as any).backroomsChairs.length > 0) {
+        (window as any).backroomsChairs.forEach((chair: any) => {
+          if (chair && chair.position) {
+            const dist = playerPosRef.current.distanceTo(chair.position);
+            if (dist < minChairDist) {
+              minChairDist = dist;
+              nearestChair = chair;
+            }
+          }
+        });
+      }
+
+      if (nearestChair && minChairDist <= 1.8) {
+        isSittingRef.current = true;
+        setIsSitting(true);
+        sittingChairRef.current = nearestChair;
+      }
+    }
+  };
   
   // Audio Engine reference
   const audioEngineRef = useRef<AudioEngine | null>(null);
@@ -1254,6 +1338,13 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         }
       }
 
+      if (e.code === 'KeyF') {
+        e.preventDefault();
+        if (!showStartOverlayRef.current && !showCheatTerminalRef.current) {
+          handleSittingToggle();
+        }
+      }
+
       if (e.code === 'KeyP') {
         e.preventDefault();
         if (!showStartOverlayRef.current && !showCheatTerminalRef.current) {
@@ -1322,7 +1413,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
 
-    const isBabyMode = activeModIds.includes('baby_mode');
+    const CEILING_HEIGHT = getCeilingHeight();
+    const isBabyMode = !entitiesEnabledRef.current;
 
     // 1. Generate map logic
     const map = generateBackroom(seed);
@@ -1402,10 +1494,16 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
+    const customTheme = customThemeRef.current;
+
     // Atmospheric Fog: very dense, dark yellowish-grey or black, turning endless hallways obscure in the distance
     // This replicates the exact liminal look where corridors fade out into deep shadow
-    scene.background = new THREE.Color('#3a3523');
-    scene.fog = new THREE.Fog('#3a3523', 10, 52); // Starts at 10m, fully saturated at 52m (safely below 67m culling) to prevent popup artifacts
+    const fogColor = customTheme?.fogColor ?? '#3a3523';
+    const fogNear = customTheme?.fogNear ?? 10.0;
+    const fogFar = customTheme?.fogFar ?? 52.0;
+
+    scene.background = new THREE.Color(customTheme?.backgroundColor ?? fogColor);
+    scene.fog = new THREE.Fog(fogColor, fogNear, fogFar); // Starts at 10m, fully saturated at 52m (safely below 67m culling) to prevent popup artifacts
 
     // Camera
     const aspect = containerRef.current.clientWidth / containerRef.current.clientHeight;
@@ -1653,108 +1751,125 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       color: 0x4f4937, // Aged yellow-grey structural metallic frame
     });
 
-    // 4. Construct the 3D world elements
-    const wallGeometry = new THREE.BoxGeometry(GRID_SPACING, CEILING_HEIGHT, GRID_SPACING);
-    const pillarGeometry = new THREE.BoxGeometry(GRID_SPACING * 0.45, CEILING_HEIGHT, GRID_SPACING * 0.45);
-
     // Static structures holder for tracking meshes
     const wallMeshes: THREE.Mesh[] = [];
     const lightPanels: { mesh: THREE.Mesh; pos: THREE.Vector3 }[] = [];
 
-    // Let's build the grid!
-    for (let r = 0; r < map.height; r++) {
-      for (let c = 0; c < map.width; c++) {
-        const cell = map.grid[r][c];
-        const px = c * GRID_SPACING + GRID_SPACING / 2;
-        const pz = r * GRID_SPACING + GRID_SPACING / 2;
+    // 4. Construct the 3D world elements
+    if (customTheme && typeof customTheme.buildWorld === 'function') {
+      try {
+        customTheme.buildWorld({
+          THREE,
+          scene,
+          map,
+          gridSpacing: GRID_SPACING,
+          ceilingHeight: CEILING_HEIGHT,
+          wallMeshes,
+          lightPanels,
+          TextureGenerator
+        });
+      } catch (err) {
+        console.error("Custom terrain buildWorld failed:", err);
+      }
+    } else {
+      const wallGeometry = new THREE.BoxGeometry(GRID_SPACING, CEILING_HEIGHT, GRID_SPACING);
+      const pillarGeometry = new THREE.BoxGeometry(GRID_SPACING * 0.45, CEILING_HEIGHT, GRID_SPACING * 0.45);
 
-        if (cell === 1) {
-          // Normal wall block
-          const wall = new THREE.Mesh(wallGeometry, wallMaterial);
-          wall.position.set(px, CEILING_HEIGHT / 2, pz);
-          scene.add(wall);
-          wallMeshes.push(wall);
-        } else if (cell === 2) {
-          // Iconic Yellow Pillar
-          const pillar = new THREE.Mesh(pillarGeometry, wallMaterial);
-          pillar.position.set(px, CEILING_HEIGHT / 2, pz);
-          scene.add(pillar);
-          wallMeshes.push(pillar);
-        } else if (cell === 3) {
-          // 3D Cruciform (Cross-Shaped 十字形) Pillar!
-          const crossGroup = new THREE.Group();
-          
-          // One axis box (width 0.55, depth 0.18)
-          const armXGeom = new THREE.BoxGeometry(GRID_SPACING * 0.55, CEILING_HEIGHT, GRID_SPACING * 0.18);
-          const armX = new THREE.Mesh(armXGeom, wallMaterial);
-          crossGroup.add(armX);
-          
-          // Perpendicular axis box (width 0.18, depth 0.55)
-          const armZGeom = new THREE.BoxGeometry(GRID_SPACING * 0.18, CEILING_HEIGHT, GRID_SPACING * 0.55);
-          const armZ = new THREE.Mesh(armZGeom, wallMaterial);
-          crossGroup.add(armZ);
+      // Let's build the grid!
+      for (let r = 0; r < map.height; r++) {
+        for (let c = 0; c < map.width; c++) {
+          const cell = map.grid[r][c];
+          const px = c * GRID_SPACING + GRID_SPACING / 2;
+          const pz = r * GRID_SPACING + GRID_SPACING / 2;
 
-          crossGroup.position.set(px, CEILING_HEIGHT / 2, pz);
-          scene.add(crossGroup);
-          
-          // Store both components as wall blocks for raycasting or rendering loops if needed
-          wallMeshes.push(armX);
-          wallMeshes.push(armZ);
-        } else if (cell === 4) {
-          // Thin Dividing Partition Screen!
-          // We alternate orientation to align naturally with grid flows
-          const isOrientX = (r + c) % 2 === 0;
-          let partGeom;
-          if (isOrientX) {
-            partGeom = new THREE.BoxGeometry(GRID_SPACING, CEILING_HEIGHT, GRID_SPACING * 0.18);
-          } else {
-            partGeom = new THREE.BoxGeometry(GRID_SPACING * 0.18, CEILING_HEIGHT, GRID_SPACING);
+          if (cell === 1) {
+            // Normal wall block
+            const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall.position.set(px, CEILING_HEIGHT / 2, pz);
+            scene.add(wall);
+            wallMeshes.push(wall);
+          } else if (cell === 2) {
+            // Iconic Yellow Pillar
+            const pillar = new THREE.Mesh(pillarGeometry, wallMaterial);
+            pillar.position.set(px, CEILING_HEIGHT / 2, pz);
+            scene.add(pillar);
+            wallMeshes.push(pillar);
+          } else if (cell === 3) {
+            // 3D Cruciform (Cross-Shaped 十字形) Pillar!
+            const crossGroup = new THREE.Group();
+            
+            // One axis box (width 0.55, depth 0.18)
+            const armXGeom = new THREE.BoxGeometry(GRID_SPACING * 0.55, CEILING_HEIGHT, GRID_SPACING * 0.18);
+            const armX = new THREE.Mesh(armXGeom, wallMaterial);
+            crossGroup.add(armX);
+            
+            // Perpendicular axis box (width 0.18, depth 0.55)
+            const armZGeom = new THREE.BoxGeometry(GRID_SPACING * 0.18, CEILING_HEIGHT, GRID_SPACING * 0.55);
+            const armZ = new THREE.Mesh(armZGeom, wallMaterial);
+            crossGroup.add(armZ);
+
+            crossGroup.position.set(px, CEILING_HEIGHT / 2, pz);
+            scene.add(crossGroup);
+            
+            // Store both components as wall blocks for raycasting or rendering loops if needed
+            wallMeshes.push(armX);
+            wallMeshes.push(armZ);
+          } else if (cell === 4) {
+            // Thin Dividing Partition Screen!
+            // We alternate orientation to align naturally with grid flows
+            const isOrientX = (r + c) % 2 === 0;
+            let partGeom;
+            if (isOrientX) {
+              partGeom = new THREE.BoxGeometry(GRID_SPACING, CEILING_HEIGHT, GRID_SPACING * 0.18);
+            } else {
+              partGeom = new THREE.BoxGeometry(GRID_SPACING * 0.18, CEILING_HEIGHT, GRID_SPACING);
+            }
+            const partition = new THREE.Mesh(partGeom, wallMaterial);
+            partition.position.set(px, CEILING_HEIGHT / 2, pz);
+            scene.add(partition);
+            wallMeshes.push(partition);
           }
-          const partition = new THREE.Mesh(partGeom, wallMaterial);
-          partition.position.set(px, CEILING_HEIGHT / 2, pz);
-          scene.add(partition);
-          wallMeshes.push(partition);
-        }
 
-        // Place ceiling lights or glowing temporal core beacons
-        if (cell === 0 && (r % 3 === 0) && (c % 3 === 0)) {
-          // Align precisely with the top-left tile of the 2x2 ceiling grid inside this cell
-          const lX = c * GRID_SPACING + 0.8;
-          const lZ = r * GRID_SPACING + 0.8;
+          // Place ceiling lights or glowing temporal core beacons
+          if (cell === 0 && (r % 3 === 0) && (c % 3 === 0)) {
+            // Align precisely with the top-left tile of the 2x2 ceiling grid inside this cell
+            const lX = c * GRID_SPACING + 0.8;
+            const lZ = r * GRID_SPACING + 0.8;
 
-          // 1. Structural metal frame filling the ceiling tile exactly (1.6m x 1.6m)
-          const lightFrameGeo = new THREE.PlaneGeometry(1.6, 1.6);
-          const lightFrame = new THREE.Mesh(lightFrameGeo, lightFrameMaterial);
-          lightFrame.rotation.x = Math.PI / 2; // Facing down (-y)
-          lightFrame.position.set(lX, CEILING_HEIGHT - 0.005, lZ); // Snug against the ceiling
-          scene.add(lightFrame);
+            // 1. Structural metal frame filling the ceiling tile exactly (1.6m x 1.6m)
+            const lightFrameGeo = new THREE.PlaneGeometry(1.6, 1.6);
+            const lightFrame = new THREE.Mesh(lightFrameGeo, lightFrameMaterial);
+            lightFrame.rotation.x = Math.PI / 2; // Facing down (-y)
+            lightFrame.position.set(lX, CEILING_HEIGHT - 0.005, lZ); // Snug against the ceiling
+            scene.add(lightFrame);
 
-          // 2. High frequency glowing fluorescent diffuser (1.3m x 1.3m)
-          const lightPanelGeo = new THREE.PlaneGeometry(1.3, 1.3);
-          const lightPanel = new THREE.Mesh(lightPanelGeo, lightFixtureMaterial);
-          lightPanel.rotation.x = Math.PI / 2; // Facing down (-y)
-          lightPanel.position.set(lX, CEILING_HEIGHT - 0.01, lZ); // Placed slightly below the frame for visual depth
-          scene.add(lightPanel);
+            // 2. High frequency glowing fluorescent diffuser (1.3m x 1.3m)
+            const lightPanelGeo = new THREE.PlaneGeometry(1.3, 1.3);
+            const lightPanel = new THREE.Mesh(lightPanelGeo, lightFixtureMaterial);
+            lightPanel.rotation.x = Math.PI / 2; // Facing down (-y)
+            lightPanel.position.set(lX, CEILING_HEIGHT - 0.01, lZ); // Placed slightly below the frame for visual depth
+            scene.add(lightPanel);
 
-          // Record light panel for dynamic PointLights
-          lightPanels.push({ mesh: lightPanel, pos: new THREE.Vector3(lX, CEILING_HEIGHT - 0.4, lZ) });
+            // Record light panel for dynamic PointLights
+            lightPanels.push({ mesh: lightPanel, pos: new THREE.Vector3(lX, CEILING_HEIGHT - 0.4, lZ) });
+          }
         }
       }
+
+      // Floor Plane
+      const floorGeo = new THREE.PlaneGeometry(map.width * GRID_SPACING, map.height * GRID_SPACING);
+      const floor = new THREE.Mesh(floorGeo, floorMaterial);
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.set((map.width * GRID_SPACING) / 2, 0, (map.height * GRID_SPACING) / 2);
+      scene.add(floor);
+
+      // Ceiling Plane
+      const ceilingGeo = new THREE.PlaneGeometry(map.width * GRID_SPACING, map.height * GRID_SPACING);
+      const ceiling = new THREE.Mesh(ceilingGeo, ceilingMaterial);
+      ceiling.rotation.x = Math.PI / 2; // Face downwards
+      ceiling.position.set((map.width * GRID_SPACING) / 2, CEILING_HEIGHT, (map.height * GRID_SPACING) / 2);
+      scene.add(ceiling);
     }
-
-    // Floor Plane
-    const floorGeo = new THREE.PlaneGeometry(map.width * GRID_SPACING, map.height * GRID_SPACING);
-    const floor = new THREE.Mesh(floorGeo, floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.set((map.width * GRID_SPACING) / 2, 0, (map.height * GRID_SPACING) / 2);
-    scene.add(floor);
-
-    // Ceiling Plane
-    const ceilingGeo = new THREE.PlaneGeometry(map.width * GRID_SPACING, map.height * GRID_SPACING);
-    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMaterial);
-    ceiling.rotation.x = Math.PI / 2; // Face downwards
-    ceiling.position.set((map.width * GRID_SPACING) / 2, CEILING_HEIGHT, (map.height * GRID_SPACING) / 2);
-    scene.add(ceiling);
 
     // ==========================================
     // STALKER MONSTER (BACTERIA) 2D DEFORMED BILLBOARD MESH
@@ -1767,9 +1882,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         uMap: { value: entitySpriteTex },
         uTime: { value: 0.0 },
         uTwitchIntensity: { value: 1.0 },
-        uFogColor: { value: new THREE.Color('#3a3523') },
-        uFogNear: { value: 10.0 },
-        uFogFar: { value: 52.0 },
+        uFogColor: { value: new THREE.Color(fogColor) },
+        uFogNear: { value: fogNear },
+        uFogFar: { value: fogFar },
       },
       vertexShader: `
         uniform float uTime;
@@ -1896,9 +2011,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       uniforms: {
         uMap: { value: smilerSpriteTex },
         uTime: { value: 0.0 },
-        uFogColor: { value: new THREE.Color('#3a3523') },
-        uFogNear: { value: 10.0 },
-        uFogFar: { value: 52.0 },
+        uFogColor: { value: new THREE.Color(fogColor) },
+        uFogNear: { value: fogNear },
+        uFogFar: { value: fogFar },
       },
       vertexShader: `
         varying vec2 vUv;
@@ -2293,7 +2408,12 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       }
 
       // Check moving
-      const isMoving = dX !== 0 || dZ !== 0;
+      let isMoving = dX !== 0 || dZ !== 0;
+      if (isSittingRef.current) {
+        isMoving = false;
+        dX = 0;
+        dZ = 0;
+      }
 
       // Vector direction for physical movement (relative to current facing direction)
       const moveDirection = new THREE.Vector3();
@@ -2310,13 +2430,66 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       const keyboardSprint = keysPressed.current['ShiftLeft'] || keysPressed.current['ShiftRight'];
       isSprintingRef.current = !!(keyboardSprint || mobileSprintRef.current);
 
+      const isSprintingActive = isSprintingRef.current && isMoving && staminaRef.current > 0;
+
+      // Update stamina
+      if (!isSimulationPaused) {
+        if (isSittingRef.current) {
+          // Sitting on chair: fastest recovery (18.0 / sec)
+          staminaRef.current = Math.min(100.0, staminaRef.current + 18.0 * dt);
+        } else if (isMoving) {
+          if (isSprintingActive) {
+            // Sprinting: consumes stamina (12.5 / sec)
+            staminaRef.current = Math.max(0.0, staminaRef.current - 12.5 * dt);
+          } else {
+            // Walking: slowest recovery (2.5 / sec)
+            staminaRef.current = Math.min(100.0, staminaRef.current + 2.5 * dt);
+          }
+        } else {
+          // Standing still: medium recovery (6.0 / sec)
+          staminaRef.current = Math.min(100.0, staminaRef.current + 6.0 * dt);
+        }
+
+        // Emit updated stamina level for GameHUD
+        window.dispatchEvent(new CustomEvent('backrooms_stamina_update', {
+          detail: { stamina: staminaRef.current }
+        }));
+      }
+
+      // Check closest chair distance for F sit prompt
+      let nearestChair: any = null;
+      let minChairDist = 999;
+      if ((window as any).backroomsChairs && (window as any).backroomsChairs.length > 0) {
+        (window as any).backroomsChairs.forEach((chair: any) => {
+          if (chair && chair.position) {
+            const dist = playerPosRef.current.distanceTo(chair.position);
+            if (dist < minChairDist) {
+              minChairDist = dist;
+              nearestChair = chair;
+            }
+          }
+        });
+      }
+      const canSit = nearestChair && minChairDist <= 1.8;
+      if (canSit !== showSitPrompt) {
+        setShowSitPrompt(canSit);
+      }
+
       // --- STANDARD 2D WALKING MOVEMENT SYSTEM with Robust Push-Out Collision Resolution ---
       // Movement Speed (m/s) with developer console multiplier and active mods multiplier
-      const baseSpeed = (isSprintingRef.current ? 4.1 : 2.0) * speedMultiplierRef.current * getModPlayerSpeedMultiplier();
+      const baseSpeed = (isSprintingActive ? 4.6 : 2.0) * speedMultiplierRef.current * getModPlayerSpeedMultiplier();
 
       // Update player position
       const currentPos = playerPosRef.current.clone();
-      const nextPos = currentPos.clone().addScaledVector(moveDirection, baseSpeed * dt);
+      let nextPos = currentPos.clone().addScaledVector(moveDirection, baseSpeed * dt);
+
+      if (isSittingRef.current && sittingChairRef.current) {
+        nextPos.x = sittingChairRef.current.position.x;
+        nextPos.z = sittingChairRef.current.position.z;
+        nextPos.y = 1.15;
+      } else {
+        nextPos.y = PLAYER_HEIGHT;
+      }
 
       // Keep player inside the map grid boundary
       const mapMaxX = map.width * GRID_SPACING;
@@ -2421,13 +2594,13 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       if (settingsRef.current.cameraBobbing) {
         if (isMoving) {
           // Walking step timer
-          const bobFrequency = isSprintingRef.current ? 14 : 9.5;
+          const bobFrequency = isSprintingActive ? 14 : 9.5;
           stepTimerRef.current += dt * bobFrequency;
 
           // Camera foot bobbing mechanics
-          finalY += Math.sin(stepTimerRef.current) * (isSprintingRef.current ? 0.065 : 0.035);
-          bobX = Math.cos(stepTimerRef.current * 0.5) * (isSprintingRef.current ? 0.045 : 0.022);
-          bobRoll = Math.sin(stepTimerRef.current * 0.5) * (isSprintingRef.current ? 0.025 : 0.008);
+          finalY += Math.sin(stepTimerRef.current) * (isSprintingActive ? 0.065 : 0.035);
+          bobX = Math.cos(stepTimerRef.current * 0.5) * (isSprintingActive ? 0.045 : 0.022);
+          bobRoll = Math.sin(stepTimerRef.current * 0.5) * (isSprintingActive ? 0.025 : 0.008);
 
           // Footstep bobbing timing (footsteps are silent on player request, used solely for the heartbeat sound effect)
           if (stepTimerRef.current % Math.PI < 0.15) {
@@ -2565,7 +2738,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         // Pacing speed (Crawls slowly up to 8.5m away, stalks/chases when closer!)
         // Speeds increased significantly as requested to match the high tension chasing behavior!
         // Stalker WILL NOT pursue player when player is inside the tank!
-        const stalkSpeed = isDrivingTank ? 0 : ((currentDistance < 8.5 ? 3.0 : 1.5) * getModMonsterSpeedMultiplier());
+        const stalkSpeed = isDrivingTank ? 0 : ((currentDistance < 8.5 ? 3.4 : 1.8) * getModMonsterSpeedMultiplier());
 
         if (currentDistance > 0.1 && stalkSpeed > 0) {
           const nextStalkerPos = stalkerWorldPos.clone().addScaledVector(stalkDirection, stalkSpeed * dt);
@@ -2641,7 +2814,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
         // Smiler crawls forward floatily (fast when close, slow/spooky pacing when far)
         // Smiler WILL NOT pursue player when player is inside the tank!
-        const smilerSpeed = isDrivingTank ? 0 : ((currentSmilerDist < 8.5 ? 3.5 : 1.35) * getModMonsterSpeedMultiplier());
+        const smilerSpeed = isDrivingTank ? 0 : ((currentSmilerDist < 8.5 ? 4.0 : 1.6) * getModMonsterSpeedMultiplier());
 
         if (currentSmilerDist > 0.1 && smilerSpeed > 0) {
           const nextSmilerPos = smilerWorldPos.clone().addScaledVector(smilerDirection, smilerSpeed * dt);
@@ -2872,6 +3045,15 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       postMaterial.uniforms.uVhsEnabled.value = settingsRef.current.vhsEffects ? 1.0 : 0.0;
       postMaterial.uniforms.uSignalLost.value = isSignalLostRef.current ? 1.0 : 0.0;
 
+      // Sync custom theme animation frames
+      if (customTheme && typeof customTheme.onAnimate === 'function') {
+        try {
+          customTheme.onAnimate(gameTimeRef.current);
+        } catch (err) {
+          console.error("Custom theme onAnimate failed:", err);
+        }
+      }
+
       // Render scene to our offscreen render target first
       renderer.setRenderTarget(renderTarget);
       renderer.render(scene, camera);
@@ -3060,6 +3242,18 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           imageRendering: settings.vhsEffects ? 'pixelated' : 'auto',
         }}
       />
+
+      {/* Sitting & Chair Interaction Alert */}
+      {showSitPrompt && !isSitting && (
+        <div className="absolute left-1/2 bottom-[35%] transform -translate-x-1/2 bg-black/60 backdrop-blur-md border border-zinc-800 text-white text-[11px] px-3.5 py-1.5 rounded-md font-mono tracking-wider font-bold animate-pulse pointer-events-none z-20">
+          {isEn ? "PRESS [F] TO SIT" : "按 [F] 坐下"}
+        </div>
+      )}
+      {isSitting && (
+        <div className="absolute left-1/2 bottom-[35%] transform -translate-x-1/2 bg-black/70 backdrop-blur-md border border-zinc-700 text-white text-[11px] px-3.5 py-1.5 rounded-md font-mono tracking-wider font-bold pointer-events-none z-20">
+          {isEn ? "PRESS [F] TO STAND UP" : "按 [F] 起立"}
+        </div>
+      )}
 
       {/* Script Injected Custom dynamic UI overlays */}
       {Object.entries(scriptCustomUi).map(([modId, html]) => {

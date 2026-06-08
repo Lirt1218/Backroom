@@ -25,7 +25,21 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [currentTimeStr, setCurrentTimeStr] = useState('');
   const [batteryLevel, setBatteryLevel] = useState(100);
+  const [staminaLevel, setStaminaLevel] = useState(100);
   const [hasUsedCheatTerminal, setHasUsedCheatTerminal] = useState(false);
+
+  useEffect(() => {
+    const handleStaminaUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.stamina === 'number') {
+        setStaminaLevel(Math.round(customEvent.detail.stamina));
+      }
+    };
+    window.addEventListener('backrooms_stamina_update', handleStaminaUpdate);
+    return () => {
+      window.removeEventListener('backrooms_stamina_update', handleStaminaUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleCheatTerminalUsed = () => {
@@ -223,11 +237,21 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       {/* 1. TOP BAR: Standard Camcorder HUD Output */}
       <div id="camcorder-hdr" className="flex justify-between items-start text-white/85 font-mono text-xs tracking-widest uppercase p-2 rounded-t-md">
         
-        {/* Left indicators: Recording state */}
+        {/* Left indicators: Recording state & Stamina */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse outline-sm outline-red-950" />
             <span className="font-bold tracking-wider drop-shadow-md">REC ●</span>
+          </div>
+          {/* Stamina white bar - clean, minimal without text bubbles or emojis */}
+          <div className="flex items-center gap-1.5 mt-0.5 pointer-events-auto select-none">
+            <span className="text-[10px] font-mono text-zinc-300 tracking-wider">STAM</span>
+            <div className="w-24 h-2 border border-white/70 p-0.5 flex items-center bg-black/40">
+              <div 
+                className="h-full bg-white transition-all duration-75"
+                style={{ width: `${staminaLevel}%` }}
+              />
+            </div>
           </div>
         </div>
 

@@ -462,4 +462,78 @@ export class TextureGenerator {
     texture.magFilter = THREE.LinearFilter;
     return texture;
   }
+
+  /**
+   * Generates a photorealistic white/cream ceramic pool tile texture
+   * with subtle 3D bevels, grout lines, and soft noise.
+   */
+  public static createPoolTiles(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+
+    // 1. Fill base grout color
+    ctx.fillStyle = '#bfd3cf'; // Light soft greenish-grey grout
+    ctx.fillRect(0, 0, 512, 512);
+
+    // 2. Draw 8x8 individual tiles with 3D gradients and bevels
+    const numTiles = 8;
+    const tileSize = 512 / numTiles; // 64px
+    const spacing = 3; // 3px grout width
+
+    for (let ty = 0; ty < numTiles; ty++) {
+      for (let tx = 0; tx < numTiles; tx++) {
+        const x = tx * tileSize + spacing;
+        const y = ty * tileSize + spacing;
+        const w = tileSize - spacing * 2;
+        const h = tileSize - spacing * 2;
+
+        // Individual tile gradient to simulate glossy convex shape
+        const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+        grad.addColorStop(0, '#ffffff'); // bright top-left edge
+        grad.addColorStop(0.15, '#f7fcfb'); // clean tile face
+        grad.addColorStop(0.85, '#eff5f4'); // soft shading
+        grad.addColorStop(1.0, '#eaeae2'); // darker bottom-right shadow
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, w, h);
+
+        // Highlight top-left border for glossy 3D feel
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x + w, y);
+        ctx.lineTo(x, y);
+        ctx.lineTo(x, y + h);
+        ctx.stroke();
+
+        // Shading bottom-right border
+        ctx.strokeStyle = 'rgba(165, 185, 180, 0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y + h);
+        ctx.lineTo(x + w, y + h);
+        ctx.lineTo(x + w, y);
+        ctx.stroke();
+      }
+    }
+
+    // 3. Add ultra-subtle ceramic noise
+    const imgData = ctx.getImageData(0, 0, 512, 512);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = (Math.random() - 0.5) * 3;
+      data[i] = Math.min(255, Math.max(0, data[i] + noise));
+      data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
+      data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.anisotropy = 4;
+    return texture;
+  }
 }

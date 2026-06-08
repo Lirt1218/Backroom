@@ -3,6 +3,7 @@ const scene = api.getScene();
 
 if (scene) {
   api.showToast("Monobloc Chair mod synced! 15 white chairs generated randomly.");
+  window.backroomsChairs = [];
 
   // Procedural Monobloc plastic garden chair mesh builder with perfect mathematical symmetry and pivot grouping
   function createMonoblocChair() {
@@ -179,8 +180,16 @@ if (scene) {
       // Add to ThreeJS Scene
       scene.add(chair);
 
+      // Register for interaction
+      if (!window.backroomsChairs) window.backroomsChairs = [];
+      window.backroomsChairs.push(chair);
+
       // Safe registration in sandbox array so they get automatically hot-uninstalled
       api._spawnedMeshes.push(chair);
     }
   }
+
+  api.onDispose(() => {
+    window.backroomsChairs = [];
+  });
 }
