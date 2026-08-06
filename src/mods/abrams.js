@@ -44,6 +44,9 @@ let isDriving = false;
 let isAimingView = false;
 let tankSpeed = 0;
 
+let stalkerDeadTime = 0;
+let smilerDeadTime = 0;
+
 let screenShakeTime = 0;
 let screenShakeIntensity = 0;
 
@@ -604,14 +607,16 @@ function handleEnterExit() {
        return;
     }
     isDriving = true;
-    window.abramsIsDriving = true; // Expose globally for AI & damage avoidance in BackroomViewer
+    api.setPlayerInvulnerable(true);
+    api.setMonstersPassive(true);
     api.setCameraOverride(true);
     api.setPlayerSpeed(0.0); // Stop player walking
     playEntrySnd();
   } else {
     isDriving = false;
     isAimingView = false;
-    window.abramsIsDriving = false; // Expose globally
+    api.setPlayerInvulnerable(false);
+    api.setMonstersPassive(false);
     api.setCameraOverride(false);
     api.setPlayerSpeed(1.0); // Reset speed
     
@@ -1054,7 +1059,7 @@ function checkRayMonsterCollision(rayStart, rayDir, maxDist) {
   const smilerPos = api.getMonsterPos("smiler");
   
   if (stalkerPos) {
-    const isStalkerDead = window.stalkerDeadTime && Date.now() < window.stalkerDeadTime;
+    const isStalkerDead = stalkerDeadTime && Date.now() < stalkerDeadTime;
     if (!isStalkerDead) {
       const e2D = new THREE.Vector2(stalkerPos.x, stalkerPos.z);
       const toE = new THREE.Vector2().subVectors(e2D, start2D);
@@ -1074,7 +1079,7 @@ function checkRayMonsterCollision(rayStart, rayDir, maxDist) {
   }
   
   if (smilerPos) {
-    const isSmilerDead = window.smilerDeadTime && Date.now() < window.smilerDeadTime;
+    const isSmilerDead = smilerDeadTime && Date.now() < smilerDeadTime;
     if (!isSmilerDead) {
       const e2D = new THREE.Vector2(smilerPos.x, smilerPos.z);
       const toE = new THREE.Vector2().subVectors(e2D, start2D);
@@ -1511,12 +1516,13 @@ function triggerExplosion(pos, hitNormal) {
       const sp = new THREE.Vector3(stalkerPosObj.x, stalkerPosObj.y || 0, stalkerPosObj.z);
       // Use 2D horizontal distance to prevent the 120mm shell's height from missing entities
       const dist = new THREE.Vector2(pos.x, pos.z).distanceTo(new THREE.Vector2(sp.x, sp.z));
-      const isStalkerDeadAlready = window.stalkerDeadTime && Date.now() < window.stalkerDeadTime;
+      const isStalkerDeadAlready = stalkerDeadTime && Date.now() < stalkerDeadTime;
       if (dist < 7.5 && !isStalkerDeadAlready) {
         spawnKillParticles(sp);
         playDeathSound();
         api.setMonsterPos("stalker", -9999.0, -9999.0);
-        window.stalkerDeadTime = Date.now() + 15000; // Remains dead for 15s
+        stalkerDeadTime = Date.now() + 15000;
+        api.paralyzeMonster("stalker", 15.0); // Remains dead for 15s using clean universal API
       }
     }
     
@@ -1524,12 +1530,13 @@ function triggerExplosion(pos, hitNormal) {
       const sm = new THREE.Vector3(smilerPosObj.x, smilerPosObj.y || 0, smilerPosObj.z);
       // Use 2D horizontal distance to prevent the 120mm shell's height from missing entities
       const dist = new THREE.Vector2(pos.x, pos.z).distanceTo(new THREE.Vector2(sm.x, sm.z));
-      const isSmilerDeadAlready = window.smilerDeadTime && Date.now() < window.smilerDeadTime;
+      const isSmilerDeadAlready = smilerDeadTime && Date.now() < smilerDeadTime;
       if (dist < 7.5 && !isSmilerDeadAlready) {
         spawnKillParticles(sm);
         playDeathSound();
         api.setMonsterPos("smiler", -9999.0, -9999.0);
-        window.smilerDeadTime = Date.now() + 15000; // Remains dead for 15s
+        smilerDeadTime = Date.now() + 15000;
+        api.paralyzeMonster("smiler", 15.0); // Remains dead for 15s using clean universal API
       }
     }
   } catch (e) {
@@ -2905,7 +2912,8 @@ api.onTick((dt, ts) => {
 });
 
 api.onDispose(() => {
-  window.abramsIsDriving = false;
+  api.setPlayerInvulnerable(false);
+  api.setMonstersPassive(false);
   stopEngineSnd();
   api.setCameraOverride(false);
   api.setPlayerSpeed(1.0);

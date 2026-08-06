@@ -370,6 +370,17 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
     scriptMonsterSpeedMultiplierRef.current = 1.0;
     entitiesEnabledRef.current = true;
 
+    // Universal Interactive Mod API - reset to baseline
+    playerHeightRef.current = PLAYER_HEIGHT;
+    movementBlockedRef.current = false;
+    customStaminaRecoveryRef.current = null;
+    interactionPromptRef.current = null;
+    setInteractionPrompt(null);
+    stalkerParalyzedUntilRef.current = 0;
+    smilerParalyzedUntilRef.current = 0;
+    playerInvulnerableRef.current = false;
+    monstersPassiveRef.current = false;
+
     if (sceneRef.current) {
       sceneRef.current.background = new THREE.Color('#3a3523');
       if (sceneRef.current.fog) {
@@ -513,6 +524,43 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
           getGridSpacing: () => GRID_SPACING,
 
           getKeys: () => keysPressed.current,
+
+          // Universal Interactive Mod API - decoupled from hardcoded components
+          setInteractionPrompt: (en: string, zh: string) => {
+            const val = { en, zh };
+            interactionPromptRef.current = val;
+            setInteractionPrompt(val);
+          },
+          clearInteractionPrompt: () => {
+            interactionPromptRef.current = null;
+            setInteractionPrompt(null);
+          },
+          setMovementBlocked: (blocked: boolean) => {
+            movementBlockedRef.current = blocked;
+          },
+          setPlayerHeight: (height: number) => {
+            playerHeightRef.current = height;
+          },
+          getPlayerHeight: () => {
+            return playerHeightRef.current;
+          },
+          setCustomStaminaRecovery: (recoveryRate: number | null) => {
+            customStaminaRecoveryRef.current = recoveryRate;
+          },
+          setPlayerInvulnerable: (invulnerable: boolean) => {
+            playerInvulnerableRef.current = invulnerable;
+          },
+          setMonstersPassive: (passive: boolean) => {
+            monstersPassiveRef.current = passive;
+          },
+          paralyzeMonster: (type: 'stalker' | 'smiler', durationInSeconds: number) => {
+            const until = Date.now() + durationInSeconds * 1000;
+            if (type === 'stalker') {
+              stalkerParalyzedUntilRef.current = until;
+            } else {
+              smilerParalyzedUntilRef.current = until;
+            }
+          },
 
           // API hook listeners
           onInit: (cb: () => void) => { initCallbacks.push(cb); },
@@ -1221,46 +1269,19 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
   const stepTimerRef = useRef<number>(0);
   const isSprintingRef = useRef<boolean>(false);
 
-  // Stamina and sitting state/refs
+  // Universal Interactive Mod API states & refs
   const staminaRef = useRef<number>(100);
-  const isSittingRef = useRef<boolean>(false);
-  const [isSitting, setIsSitting] = useState<boolean>(false);
-  const [showSitPrompt, setShowSitPrompt] = useState<boolean>(false);
-  const sittingChairRef = useRef<THREE.Group | null>(null);
+  const [interactionPrompt, setInteractionPrompt] = useState<{en: string, zh: string} | null>(null);
+  const interactionPromptRef = useRef<{en: string, zh: string} | null>(null);
+  const playerHeightRef = useRef<number>(PLAYER_HEIGHT);
+  const movementBlockedRef = useRef<boolean>(false);
+  const customStaminaRecoveryRef = useRef<number | null>(null);
+  const stalkerParalyzedUntilRef = useRef<number>(0);
+  const smilerParalyzedUntilRef = useRef<number>(0);
+  const playerInvulnerableRef = useRef<boolean>(false);
+  const monstersPassiveRef = useRef<boolean>(false);
 
-  const handleSittingToggle = () => {
-    if (isSittingRef.current) {
-      // Stand up!
-      isSittingRef.current = false;
-      setIsSitting(false);
-      
-      // Push slightly forward based on direction facing so they stand in front of the chair
-      const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotationYRef.current);
-      playerPosRef.current.addScaledVector(forward, 0.4);
-      sittingChairRef.current = null;
-    } else {
-      // Find nearest chair to sit on
-      let nearestChair: any = null;
-      let minChairDist = 999;
-      if ((window as any).backroomsChairs && (window as any).backroomsChairs.length > 0) {
-        (window as any).backroomsChairs.forEach((chair: any) => {
-          if (chair && chair.position) {
-            const dist = playerPosRef.current.distanceTo(chair.position);
-            if (dist < minChairDist) {
-              minChairDist = dist;
-              nearestChair = chair;
-            }
-          }
-        });
-      }
 
-      if (nearestChair && minChairDist <= 1.8) {
-        isSittingRef.current = true;
-        setIsSitting(true);
-        sittingChairRef.current = nearestChair;
-      }
-    }
-  };
   
   // Audio Engine reference
   const audioEngineRef = useRef<AudioEngine | null>(null);
@@ -1338,12 +1359,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         }
       }
 
-      if (e.code === 'KeyF') {
-        e.preventDefault();
-        if (!showStartOverlayRef.current && !showCheatTerminalRef.current) {
-          handleSittingToggle();
-        }
-      }
+
 
       if (e.code === 'KeyP') {
         e.preventDefault();
@@ -2409,7 +2425,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
       // Check moving
       let isMoving = dX !== 0 || dZ !== 0;
-      if (isSittingRef.current) {
+      if (movementBlockedRef.current) {
         isMoving = false;
         dX = 0;
         dZ = 0;
@@ -2434,9 +2450,9 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
       // Update stamina
       if (!isSimulationPaused) {
-        if (isSittingRef.current) {
-          // Sitting on chair: fastest recovery (18.0 / sec)
-          staminaRef.current = Math.min(100.0, staminaRef.current + 18.0 * dt);
+        if (customStaminaRecoveryRef.current !== null) {
+          // Custom stamina recovery registered by interactive mods (e.g., sitting downs or rests)
+          staminaRef.current = Math.min(100.0, staminaRef.current + customStaminaRecoveryRef.current * dt);
         } else if (isMoving) {
           if (isSprintingActive) {
             // Sprinting: consumes stamina (12.5 / sec)
@@ -2456,25 +2472,6 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         }));
       }
 
-      // Check closest chair distance for F sit prompt
-      let nearestChair: any = null;
-      let minChairDist = 999;
-      if ((window as any).backroomsChairs && (window as any).backroomsChairs.length > 0) {
-        (window as any).backroomsChairs.forEach((chair: any) => {
-          if (chair && chair.position) {
-            const dist = playerPosRef.current.distanceTo(chair.position);
-            if (dist < minChairDist) {
-              minChairDist = dist;
-              nearestChair = chair;
-            }
-          }
-        });
-      }
-      const canSit = nearestChair && minChairDist <= 1.8;
-      if (canSit !== showSitPrompt) {
-        setShowSitPrompt(canSit);
-      }
-
       // --- STANDARD 2D WALKING MOVEMENT SYSTEM with Robust Push-Out Collision Resolution ---
       // Movement Speed (m/s) with developer console multiplier and active mods multiplier
       const baseSpeed = (isSprintingActive ? 4.6 : 2.0) * speedMultiplierRef.current * getModPlayerSpeedMultiplier();
@@ -2483,12 +2480,12 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       const currentPos = playerPosRef.current.clone();
       let nextPos = currentPos.clone().addScaledVector(moveDirection, baseSpeed * dt);
 
-      if (isSittingRef.current && sittingChairRef.current) {
-        nextPos.x = sittingChairRef.current.position.x;
-        nextPos.z = sittingChairRef.current.position.z;
-        nextPos.y = 1.15;
+      if (movementBlockedRef.current) {
+        nextPos.x = currentPos.x;
+        nextPos.z = currentPos.z;
+        nextPos.y = playerHeightRef.current;
       } else {
-        nextPos.y = PLAYER_HEIGHT;
+        nextPos.y = playerHeightRef.current;
       }
 
       // Keep player inside the map grid boundary
@@ -2707,8 +2704,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       }
 
       // --- 1. STALKER (BACTERIA) PERSISTENT POSITION DIRECTOR & AI ---
-      const isStalkerDead = (window as any).stalkerDeadTime && Date.now() < (window as any).stalkerDeadTime;
-      const isDrivingTank = (window as any).abramsIsDriving || false;
+      const isStalkerDead = (stalkerParalyzedUntilRef.current && Date.now() < stalkerParalyzedUntilRef.current);
 
       if (isStalkerDead || isBabyMode) {
         stalkerWorldPos.set(-9999.0, -9999.0, -9999.0);
@@ -2737,8 +2733,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
         // Pacing speed (Crawls slowly up to 8.5m away, stalks/chases when closer!)
         // Speeds increased significantly as requested to match the high tension chasing behavior!
-        // Stalker WILL NOT pursue player when player is inside the tank!
-        const stalkSpeed = isDrivingTank ? 0 : ((currentDistance < 8.5 ? 3.4 : 1.8) * getModMonsterSpeedMultiplier());
+        // Stalker WILL NOT pursue player when player is in passive mod state!
+        const stalkSpeed = monstersPassiveRef.current ? 0 : ((currentDistance < 8.5 ? 3.4 : 1.8) * getModMonsterSpeedMultiplier());
 
         if (currentDistance > 0.1 && stalkSpeed > 0) {
           const nextStalkerPos = stalkerWorldPos.clone().addScaledVector(stalkDirection, stalkSpeed * dt);
@@ -2787,7 +2783,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
 
       // --- 2. SMILER (笑魇) POSITION DIRECTOR & AI ---
-      const isSmilerDead = (window as any).smilerDeadTime && Date.now() < (window as any).smilerDeadTime;
+      const isSmilerDead = (smilerParalyzedUntilRef.current && Date.now() < smilerParalyzedUntilRef.current);
       if (isSmilerDead || isBabyMode) {
         smilerWorldPos.set(-9999.0, -9999.0, -9999.0);
         smilerSprite.position.set(-9999.0, -9999.0, -9999.0);
@@ -2813,8 +2809,8 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         smilerDirection.normalize();
 
         // Smiler crawls forward floatily (fast when close, slow/spooky pacing when far)
-        // Smiler WILL NOT pursue player when player is inside the tank!
-        const smilerSpeed = isDrivingTank ? 0 : ((currentSmilerDist < 8.5 ? 4.0 : 1.6) * getModMonsterSpeedMultiplier());
+        // Smiler WILL NOT pursue player when player is in passive mod state!
+        const smilerSpeed = monstersPassiveRef.current ? 0 : ((currentSmilerDist < 8.5 ? 4.0 : 1.6) * getModMonsterSpeedMultiplier());
 
         if (currentSmilerDist > 0.1 && smilerSpeed > 0) {
           const nextSmilerPos = smilerWorldPos.clone().addScaledVector(smilerDirection, smilerSpeed * dt);
@@ -3028,7 +3024,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
       const minDistanceToMonster = Math.min(distToPlayer, distToSmiler);
 
       // Trigger Signal Lost (no visual, only loud electrical noise & fuzzy static) upon touch/collision
-      if (!isSimulationPaused && minDistanceToMonster < 1.65 && !isSignalLostRef.current && !isGodModeRef.current && !isDrivingTank) {
+      if (!isSimulationPaused && minDistanceToMonster < 1.65 && !isSignalLostRef.current && !isGodModeRef.current && !playerInvulnerableRef.current) {
         triggerSignalLost(true);
       }
 
@@ -3243,15 +3239,10 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
         }}
       />
 
-      {/* Sitting & Chair Interaction Alert */}
-      {showSitPrompt && !isSitting && (
+      {/* Universal Script / Mod Interaction Alert */}
+      {interactionPrompt && (
         <div className="absolute left-1/2 bottom-[35%] transform -translate-x-1/2 bg-black/60 backdrop-blur-md border border-zinc-800 text-white text-[11px] px-3.5 py-1.5 rounded-md font-mono tracking-wider font-bold animate-pulse pointer-events-none z-20">
-          {isEn ? "PRESS [F] TO SIT" : "按 [F] 坐下"}
-        </div>
-      )}
-      {isSitting && (
-        <div className="absolute left-1/2 bottom-[35%] transform -translate-x-1/2 bg-black/70 backdrop-blur-md border border-zinc-700 text-white text-[11px] px-3.5 py-1.5 rounded-md font-mono tracking-wider font-bold pointer-events-none z-20">
-          {isEn ? "PRESS [F] TO STAND UP" : "按 [F] 起立"}
+          {isEn ? interactionPrompt.en : interactionPrompt.zh}
         </div>
       )}
 
@@ -3333,7 +3324,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
               }}
               className="absolute top-6 right-6 z-[60] bg-zinc-950/90 border border-yellow-500/30 px-3 py-1.5 rounded-lg text-xs font-mono text-yellow-500 font-bold hover:bg-yellow-500/10 transition-all shadow-xl flex items-center gap-1.5 select-none hover:border-yellow-400 cursor-pointer text-glow"
             >
-              🌐 {isEn ? '文 / 简体中文' : 'EN / English'}
+               {isEn ? '文 / 简体中文' : 'EN / English'}
             </button>
 
             {/* Inner centralized menu frame */}
@@ -3445,7 +3436,7 @@ export const BackroomViewer: React.FC<BackroomViewerProps> = ({
 
                     <div className="bg-zinc-900/50 border border-zinc-900 rounded-xl p-3.5 flex flex-col gap-2 text-left">
                       <p className="text-[10px] text-zinc-400 font-mono uppercase tracking-wider mb-2 font-bold border-b border-zinc-800/40 pb-1.5">
-                        🎮 {isEn ? "CONTROL INSTRUCTIONS" : "多端控制规范"}
+                         {isEn ? "CONTROL INSTRUCTIONS" : "多端控制规范"}
                       </p>
                       <div className="grid grid-cols-2 gap-3 text-[11px] text-zinc-400 font-mono">
                         <div>

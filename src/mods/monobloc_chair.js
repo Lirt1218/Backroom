@@ -3,7 +3,11 @@ const scene = api.getScene();
 
 if (scene) {
   api.showToast("Monobloc Chair mod synced! 15 white chairs generated randomly.");
-  window.backroomsChairs = [];
+  
+  const chairs = [];
+  let isSitting = false;
+  let nearestChair = null;
+  let sittingChair = null;
 
   // Procedural Monobloc plastic garden chair mesh builder with perfect mathematical symmetry and pivot grouping
   function createMonoblocChair() {
@@ -180,16 +184,90 @@ if (scene) {
       // Add to ThreeJS Scene
       scene.add(chair);
 
-      // Register for interaction
-      if (!window.backroomsChairs) window.backroomsChairs = [];
-      window.backroomsChairs.push(chair);
+      // Add to our local list
+      chairs.push(chair);
 
       // Safe registration in sandbox array so they get automatically hot-uninstalled
       api._spawnedMeshes.push(chair);
     }
   }
 
+  // Monitor interaction prompts and positional snapping on frame ticks
+  api.onTick((dt, ts) => {
+    const pos = api.getPlayerPos();
+    
+    if (isSitting && sittingChair) {
+      // Forcefully snap player pos and height on chair
+      api.setPlayerPos(sittingChair.position.x, 1.15, sittingChair.position.z);
+    } else {
+      // Find nearest chair to prompt option
+      let closest = null;
+      let minDist = 999;
+      for (let i = 0; i < chairs.length; i++) {
+        const chair = chairs[i];
+        if (chair && chair.position) {
+          const dx = pos.x - chair.position.x;
+          const dz = pos.z - chair.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist < minDist) {
+            minDist = dist;
+            closest = chair;
+          }
+        }
+      }
+
+      if (closest && minDist <= 1.8) {
+        nearestChair = closest;
+        api.setInteractionPrompt("PRESS [F] TO SIT", "按 [F] 坐下");
+      } else {
+        if (nearestChair) {
+          nearestChair = null;
+          api.clearInteractionPrompt();
+        }
+      }
+    }
+  });
+
+  // Handle keyboard [F] input events inside the sandbox mod itself!
+  api.onKeyDown((code) => {
+    if (code === 'KeyF') {
+      if (isSitting) {
+        // Stand up!
+        isSitting = false;
+        sittingChair = null;
+        api.setMovementBlocked(false);
+        api.setPlayerHeight(1.65); // standard base eye height
+        api.setCustomStaminaRecovery(null);
+
+        // Push forward based on player's current view angle
+        const pos = api.getPlayerPos();
+        const angle = api.getPlayerRotationY();
+        const fx = Math.sin(angle) * 0.45;
+        const fz = Math.cos(angle) * 0.45;
+        api.setPlayerPos(pos.x + fx, 1.65, pos.z + fz);
+
+        api.clearInteractionPrompt();
+      } else {
+        // Sit down!
+        if (nearestChair) {
+          isSitting = true;
+          sittingChair = nearestChair;
+          api.setMovementBlocked(true);
+          api.setPlayerHeight(1.15); // sitting camera height lower
+          api.setCustomStaminaRecovery(18.0); // fastest stamina recovery rate on chair
+          
+          api.setPlayerPos(sittingChair.position.x, 1.15, sittingChair.position.z);
+          api.setInteractionPrompt("PRESS [F] TO STAND UP", "按 [F] 起立");
+        }
+      }
+    }
+  });
+
   api.onDispose(() => {
-    window.backroomsChairs = [];
+    // Clear prompt in case we dispose while sitting
+    api.clearInteractionPrompt();
+    api.setMovementBlocked(false);
+    api.setPlayerHeight(1.65);
+    api.setCustomStaminaRecovery(null);
   });
 }

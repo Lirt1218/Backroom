@@ -331,29 +331,31 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 
                 {closestDistance > 0 ? (
                   <div className="border-t border-zinc-850 pt-1 mt-1 flex flex-col gap-0.5">
-                    <div className="text-emerald-400 font-bold">PROXIMITY_DETECTION: {closestDistance}m</div>
+                    <div className="text-emerald-400 font-bold uppercase tracking-wider text-[9px]">
+                      {isEn ? "TAPE_PROXIMITY_DETECTION" : "附近未解密磁带磁感探测"}: {closestDistance}m
+                    </div>
                     <div className="w-full bg-zinc-950/80 border border-zinc-900 h-2 p-[1px] flex items-center overflow-hidden">
                       <div 
-                        className="h-full rounded-xs transition-all duration-150" 
+                        className="h-full rounded-xs transition-all duration-150 animate-pulse" 
                         style={{ 
                           width: `${Math.max(8, Math.min(100, Math.round(((35 - closestDistance) / 35) * 100)))}%`,
-                          backgroundColor: closestDistance < 6 ? '#ef4444' : closestDistance < 15 ? '#eab308' : '#3b82f6' 
+                          backgroundColor: closestDistance < 6 ? '#10b981' : closestDistance < 15 ? '#34d399' : '#059669' 
                         }}
                       />
                     </div>
                     <div className="text-[8px] uppercase tracking-wide" style={{
-                      color: closestDistance < 6 ? '#ef4444' : closestDistance < 15 ? '#eab308' : '#71717a'
+                      color: closestDistance < 6 ? '#10b981' : closestDistance < 15 ? '#34d399' : '#71717a'
                     }}>
-                      SIGNAL: {closestDistance < 6 
-                        ? (isEn ? "STRONG - CONTACT_ALERT" : "高能载波 - 长廊深处危险") 
+                      {isEn ? "SIGNAL: " : "载波寻迹: "}{closestDistance < 6 
+                        ? (isEn ? "STRONG - EXTRACTION_READY" : "高能载波 - 磁带源就在近前") 
                         : closestDistance < 15
-                          ? (isEn ? "MEDIUM - CLOSING" : "中等信号 - 破译定位已锁定")
-                          : (isEn ? "WEAK - DETECTING" : "微弱磁感 - 无障碍连线中")}
+                          ? (isEn ? "MEDIUM - LOCATED" : "中等信号 - 解码锁定已就绪")
+                          : (isEn ? "WEAK - DETECTING" : "微弱磁感 - 正搜寻寻迹对端")}
                     </div>
                   </div>
                 ) : (
                   <div className="border-t border-zinc-850 pt-1 mt-1 text-zinc-500 uppercase tracking-widest text-[8px]">
-                    NO ACTIVE SOURCE CARRIERS IN SECTOR
+                    {isEn ? "NO UNRESOLVED TAPES DETECTED IN SECTOR" : "当前扇区无待收集破译磁带"}
                   </div>
                 )}
                 
